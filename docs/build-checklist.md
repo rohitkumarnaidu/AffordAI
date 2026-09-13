@@ -142,7 +142,7 @@ Referenced by `AGENTS.md` §§27-27b, 30. Update as work lands.
 - [x] 30.3 no spare agents/providers/dependencies -- Evidence: no SDK vendored, no dashboard/OTel/queue added (report 22); deps unchanged (pandas only)
 
 ## MODULE 31 -- Clean room (`scripts/clean_room_run.py`)
-- [x] 31.1 fresh env: install, env vars, dataset -- Evidence: `scripts/clean_room_run.py` fresh subprocess scrubbed env temp dir, `C:\Users\Dell\AppData\Local\Temp\affordai-cleanroom-*` 2026-09-13
+- [x] 31.1 fresh subprocess + scrubbed env + temp output + build + validate -- Evidence: `scripts/clean_room_run.py` `CLEAN-ROOM PASS` (fresh subprocess, KEY/TOKEN-scrubbed env, temp-dir output, no local state). SCOPE NOTE (honest): this is fresh-PROCESS validation, not fresh-venv/install/isolated-copy -- stdlib-only runtime needs no install (asserted in script docstring). Evaluator-isolation beyond this is not claimed.
 - [x] 31.2 run -> `output.csv` -> validate -> usage report, no hidden state -- Evidence: `CLEAN-ROOM PASS` 2026-09-13 16:34 IST, 250 rows, validator PASS, no local state
 
 ## MODULE 32 -- Reproducibility
@@ -159,8 +159,8 @@ Referenced by `AGENTS.md` §§27-27b, 30. Update as work lands.
 
 ## MODULE 35 -- Final submission
 - [x] 35.1 `output.csv`: 250+header, order, schema, validator green -- Evidence: `output.csv` 250 rows 2026-09-13 16:51 IST, `validate_output.py PASS`, header 8 cols exact, replay d8386548517835c9
-- [x] 35.2 `code.zip`: runnable, README, evaluation files, no secrets, packaging tested -- Evidence: `code.zip` 123 entries sha256 `40493c2f…` 440KB, no .env/__pycache__/log.txt, usage_report in; rebuilt 2026-09-13 ~17:35 IST from manifest with refreshed working-tree content (metered usage_report + dotenv llm_adapter + §36-38 docs), all 123 refreshed, 0 stale
-- [x] 35.3 usage report complete (provider/model/calls/tokens/costs) -- Evidence: `evaluation/usage_report.md` 0/0/0/0.0000, per-model n/a deterministic, 250 rows, 2.6s, token source estimated
+- [x] 35.2 `code.zip`: runnable, README, evaluation files, no secrets, packaging tested -- Evidence: `code.zip` 129 entries sha256 `ab1ea64d…` 478KB (verified 2026-09-13 ~18:10 IST), no .env/__pycache__/log.txt/.git, usage_report in. REFRESH NOTE: zip predates `scripts/final_red_flag_gate.py` + `scripts/final_green_light_gate.py` (added after last rebuild) -- rebuild from worktree before submit so gates ship inside the package.
+- [x] 35.3 usage report complete (provider/model/calls/tokens/costs) -- Evidence: `evaluation/usage_report.md` provider groq, models qwen/qwen3.6-27b + groq/compound, 77 calls (0 backend round-trips), in 7864 / out 0 / total 7864, avg 31.5/req, costs UNKNOWN (declared, no verified pricing -- never fabricated), per-model table, 250 rows. (Supersedes the earlier `0/0/0/0.0000` E0-baseline line.)
 - [x] 35.4 `log.txt` complete, append-only, identities exact, redacted -- Evidence: `log.txt` 3535 lines pre-final + new final closure entry, tool=opencode exact, redacted, append-only
 
 ---
@@ -305,3 +305,17 @@ A1 FX latest-on-before exact pair, installment `months*31` approximation, 90-day
 - Clean-room/Replay/Evaluation: clean_room_run.py PASS, replay identical, evaluate.py 0.44/0.48/0.36 local proxy, ull_dataset_metrics PASS -> Final: PASS
 
 Final gate for Sections 22-26: GREEN -- canonical object immutable, engine deterministic with 8 edges, explanation grounded, serializer exact, validator final gate blocks on any error, 257 tests green, 250 rows validated, replay identical.
+
+---
+
+## MODULE 39 -- Sections 43-52 closure (zero-trust audit + executable gates, 2026-09-13 ~18:15 IST, HEAD b79431c + worktree)
+
+Zero-trust audit (3 read-only subagents + independent re-verification; every claim re-proven with real code + real data):
+- pytest 375 passed; `validate_output.py` PASS; replay rerun byte-identical (`d8386548517835c9`); 250/250 rows/order/IDs.
+- Latent bugs found AND proven zero-impact on official data before fixing: F2 reduce-FX unit mix (0 cross-currency reducible-with-floor events); 3A salary-link any-source inference (0 links fired); message_86 `1110` vs receipt truth `393.22 INR` (settled-past + no recurrence + single-request user; real `build_flows` with/without amend = 0 flow diff); 3B year-fragments (6 msgs, all unlinked-inert); 3C negated cancel (0 linked cancels); F1 weak boundary test; F4 blank-request abort (deferred, loud DatasetError, 0 official blanks).
+- Fixes (all behavior-preserving on official data; post-fix replay IDENTICAL): `_first_valid_amount` year guard + `_is_negated` cancel/settle/delay guard (`message_interpreter.py`); `_link_salary_fact` employer/bank + confirm + deny-veto gates (`pipeline.py`); `_home_cap` home-currency reduce caps + rate threading (`spending_changes.py`, `pipeline.py:849`, `ablation.py:280`); hardened `test_no_llm_or_clock_in_deterministic_core` (glob all core modules + pipeline pins) + 14 new tests (`tests/regression/test_sections_43_52_audits.py`).
+- Explained, not bugs: partial 0/250 (0 rows meet all 5 preconditions); request_113 salary skip (non-employer + non-home, documented conservative); not_affordable rows with safe>0 (valid partial-capacity shape; gate initially mis-flagged 38, fixed).
+- Executable gates (NEW, all run green): `scripts/final_red_flag_gate.py` ALL CLEAR (12 checks incl. 250/250 safe+earliest re-derivation + plan re-simulation from rebuilt states); `scripts/final_green_light_gate.py` green except `worktree_clean` (this turn's own 5 files uncommitted); `scripts/scan_secrets.py` SCAN CLEAN (156 files; header-only fixture rule proven).
+- Stale lines corrected this turn: 31.1 (fresh-process scope, no install claim), 35.2 (129 entries `ab1ea64d…`), 35.3 (metered 77/7864/UNKNOWN).
+- Known residuals: code.zip predates the 2 gate scripts (rebuild at pack time); usage costs UNKNOWN (honest); F4/F5/R1-R6 documented in turn log; shared-checkout concurrent commits observed (reconciled by content verification, HEAD adopted after byte-level review).
+- Verdict: CONDITIONAL GREEN -- every technical gate passes; remaining conditions are packaging actions (commit worktree files, rebuild code.zip, submit), not correctness gaps.

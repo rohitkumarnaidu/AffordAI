@@ -1,8 +1,13 @@
 """Validate output.csv against requests.csv (+options/profiles). Exit 1 on violation.
 
-Final gate (Section 26.9, 8.11): ANY hard validation failure = FINAL SUBMISSION BLOCKED.
-No warnings silently pass; all layers are errors.
-Covers: structural, identity, numeric, enum, plan, spending, evidence, consistency, safety.
+Submission artifact gate (Sections 26.9, 8.11): ANY hard validation failure =
+FINAL SUBMISSION BLOCKED. This script checks the CSV-PROVABLE layers:
+structural, identity, numeric, enum, plan, spending, preference.
+Evidence / consistency / canonical / floor-simulation layers need Decisions +
+Contexts and run inside the pipeline (validate_evidence / validate_consistency
+/ validate_canonical_consistency / simulate) plus the artifact-level proof in
+scripts/final_red_flag_gate.py::check_artifact_finance. See that gate for the
+complete Sec 44/45 story; this file alone is necessary but not sufficient.
 """
 from __future__ import annotations
 

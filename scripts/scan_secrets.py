@@ -38,6 +38,19 @@ ASSIGN_RE = re.compile(r"""(?i)\b(api[_-]?key|secret|passwd|password|bearer)\b\s
 # Files/dirs where key-LOOKING dummy values are expected (redaction fixtures).
 TESTISH = ("tests/", "test_", ".md", ".example")
 
+_BODY_LINE_RE = re.compile(r"^[A-Za-z0-9+/=]{32,}\s*$")
+
+
+def _key_body_follows(text: str, at: int) -> bool:
+    """True iff a base64 key body follows the header at ``at``.
+
+    Distinguishes the verified redaction-test input (bare header string, no
+    key material -- e.g. tests/security/test_sec31_32.py) from a real
+    committed key. A real block has base64 body lines after the header.
+    """
+    following = text[at:].splitlines()[1:4]
+    return any(_BODY_LINE_RE.match(ln) for ln in following)
+
 
 def _tracked_files() -> list[str]:
     out = subprocess.run(
@@ -77,7 +90,14 @@ def main() -> int:
         for name, rx in FAIL_PATTERNS:
             m = rx.search(text)
             if m:
-                if any(k in rel for k in TESTISH):
+                if name == "private-key-block" and not _key_body_follows(text, m.start()):
+                    # Bare header string, no key material (verified redaction-test
+                    # input): warn in fixture paths, fail elsewhere.
+                    if any(k in rel for k in TESTISH):
+                        warns.append(f"WARN {rel}: private-key header-only fixture (no key body)")
+                    else:
+                        fails.append(f"FAIL {rel}: stray private-key header {m.group(0)[:12]}...")
+                elif any(k in rel for k in TESTISH):
                     warns.append(f"WARN {rel}: {name} dummy fixture? {m.group(0)[:12]}...")
                 else:
                     fails.append(f"FAIL {rel}: {name} match {m.group(0)[:12]}...")
