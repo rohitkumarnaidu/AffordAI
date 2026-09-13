@@ -35,11 +35,46 @@ _VARIANTS_PER_BASE = 3
 class Target:
     event_id: str
     mode: str  # stop | reduce
-    new_amount: Decimal | None
+    new_amount: Decimal | None  # HOME-currency per-occurrence cap (reduce); None = stop
     saving: Decimal
 
 
-def candidate_targets(state, profile) -> list[Target]:
+def _home_cap(
+    raw_floor: Decimal,
+    event_currency: str,
+    home: str,
+    fx_day,
+    rate_table=None,
+) -> Decimal | None:
+    """Convert a source-currency reduction floor to home-currency cap.
+
+    Sec 44 (F2): ``_apply_changes``/``simulate`` compare caps against
+    ``amount_home`` flows, so the cap MUST be in home units. Same-currency
+    is the identity path (exact, no FX). Cross-currency converts at the
+    event settlement date and quantizes once (posting rule). Missing rate
+    table or failed conversion -> None (fail-closed: no reduce offered
+    rather than a unit-mismatched phantom saving).
+    """
+    if event_currency == home:
+        return raw_floor
+    if rate_table is None:
+        return None
+    try:
+        conv, _ = rate_table.convert_to_home(raw_floor, event_currency, home, fx_day)
+    except Exception:
+        try:
+            conv = rate_table.to_home(raw_floor, event_currency, home, fx_day)
+        except Exception:
+            conv = None
+    return conv
+
+
+def candidate_targets(state, profile, rate_table=None) -> list[Target]:
+    """Reduce/stop targets. Reduce caps are HOME-currency (see _home_cap).
+
+    ``rate_table`` is required for cross-currency reduce targets; without it
+    only same-currency reduces are offered (fail-closed, never unit-mixed).
+    """
     by_source: dict[str, list] = {}
     for f in state.flows:
         if f.amount_home < 0 and f.source_event_id:
@@ -66,11 +101,21 @@ def candidate_targets(state, profile) -> list[Target]:
             out.append(Target(source, "stop", None, total))
         if flex in REDUCE_OK and cat in reduce_willing:
             try:
-                new_amount = validate_reduction(
+                raw_floor = validate_reduction(
                     row, profile, row["minimum_allowed_amount"]
                 )
             except Exception:
                 continue
+            # F2: cap must be home-currency (flows are amount_home).
+            new_amount = _home_cap(
+                raw_floor,
+                str(row.get("currency") or state.home),
+                state.home,
+                row.get("settlement_date"),
+                rate_table,
+            )
+            if new_amount is None:
+                continue  # fail-closed: no FX, no reduce (never unit-mixed)
             capped_total = sum(min(-f.amount_home, new_amount) for f in flows)
             if capped_total < total:
                 out.append(Target(source, "reduce", new_amount, total - capped_total))

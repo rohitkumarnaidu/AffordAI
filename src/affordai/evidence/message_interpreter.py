@@ -43,6 +43,46 @@ _DATE_RE = re.compile(r"(\d{4}-\d{2}-\d{2})")
 # to the earliest scheduled salary event in the window (documented).
 SALARY_RE = re.compile(r"salary|gaji|payroll|\bpay\b|wage|upah", re.I)
 
+# Sec 44 (3B): a bare year that continues as an ISO date (2025 in 2025-08-23)
+# is a calendar fragment, never money. Checked against the text immediately
+# following the captured number.
+_ISO_DATE_TAIL_RE = re.compile(r"^-\d{2}-\d{2}\b")
+
+# Sec 44 (3C): negation tokens. A state-changing keyword (cancel/settle/delay)
+# preceded by negation within a short token window ("do not cancel", "belum
+# dibatalkan") is a benign mention, not an instruction -- suppress the fact.
+# Fail-closed direction: suppressing a true cancel keeps the outflow (safe).
+_NEGATION_TOKENS = frozenset({
+    "no", "not", "never", "without", "cannot",
+    "tidak", "jangan", "belum", "bukan", "tanpa",
+})
+_NEGATION_TOKEN_RE = re.compile(r"[A-Za-z']+")
+_NEGATION_WINDOW_TOKENS = 4
+# Kinds whose facts can move money or dates (suppressed under negation).
+# confirm/preference are advisory/evidence-only and keep current behavior.
+_NEGATION_GATED_KINDS = frozenset({"cancel", "settle", "delay"})
+
+
+def _is_negated(text: str, match_start: int) -> bool:
+    """True iff a negation token appears just before ``match_start``."""
+    prefix = text[:match_start]
+    tokens = _NEGATION_TOKEN_RE.findall(prefix)[-_NEGATION_WINDOW_TOKENS:]
+    for tok in tokens:
+        low = tok.lower()
+        if low in _NEGATION_TOKENS or low.endswith("n't"):
+            return True
+    return False
+
+
+def _first_valid_amount(text: str):
+    """First _AMOUNT_RE match that is not an ISO-date year fragment."""
+    for m in _AMOUNT_RE.finditer(text):
+        tail = text[m.end(1):m.end(1) + 6]
+        if _ISO_DATE_TAIL_RE.match(tail):
+            continue
+        return m
+    return None
+
 
 def interpret(message: dict) -> list[Evidence]:
     """Extract typed facts from one loaded message row."""
@@ -59,9 +99,12 @@ def interpret(message: dict) -> list[Evidence]:
     )
     facts: list[Evidence] = []
     for kind, rx in _PATTERNS:
-        if rx.search(text):
+        m = rx.search(text)
+        if m:
+            if kind in _NEGATION_GATED_KINDS and _is_negated(text, m.start()):
+                continue  # benign/negated mention (Sec 44 3C), not a state change
             facts.append(Evidence(kind=kind, raw_value=text[:200], **base))
-    amount = _AMOUNT_RE.search(text)
+    amount = _first_valid_amount(text)
     # Emitted even without related_event_id: the pipeline links request-level
     # payroll amounts to scheduled salary; unlinked facts are ignored downstream.
     if amount:

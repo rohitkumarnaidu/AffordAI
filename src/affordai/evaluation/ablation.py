@@ -277,7 +277,7 @@ def instrument_e4_ranking(dataset_dir: str = "dataset/official") -> dict:
             safe = max_safe_today(state)
             earliest = earliest_full_date(state)
             cands, _ = payment_plans.generate(state, ctx.payment_options, safe, earliest, ctx.request["allows_partial_payment"])
-            cands = cands + spending_changes.find_variants(state, cands, spending_changes.candidate_targets(state, ctx.profile), state.deadline)
+            cands = cands + spending_changes.find_variants(state, cands, spending_changes.candidate_targets(state, ctx.profile, tables["rates"]), state.deadline)
             eligible = filter_candidates(cands, ctx.profile, ctx.request["allows_partial_payment"], ctx.request["desired_completion_date"])
             validated = [c for c in eligible if simulate(state, c.payments, c.changes or {}).ok]
             if len(validated) > 1:

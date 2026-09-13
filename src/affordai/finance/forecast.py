@@ -27,7 +27,13 @@ def _apply_changes(
     flows_by_source: dict[str, list],
     changes: dict[str, Decimal | None],
 ) -> dict[date, Decimal]:
-    """Return adjusted daily net. stop -> remove source outflows; reduce -> cap each occurrence."""
+    """Return adjusted daily net. stop -> remove source outflows; reduce -> cap each occurrence.
+
+    Units contract (Sec 44 F2): reduce caps in ``changes`` are HOME-currency
+    per-occurrence caps, compared against ``flow.amount_home``. Producers
+    (spending_changes.candidate_targets) must convert source-currency floors
+    via _home_cap; this function never converts.
+    """
     if not changes:
         return daily_net
     adjusted = dict(daily_net)

@@ -576,11 +576,26 @@ def _validate_fk_integrity(tables: dict) -> list[JoinIntegrityIssue]:
 
 
 def _link_salary_fact(ctx: RequestContext, message: dict, fact) -> None:
-    """Link request-level payroll amounts to the earliest scheduled salary."""
+    """Link request-level payroll amounts to the earliest scheduled salary.
+
+    Sec 44 (3A) gates: the amount-keyword path is inference, not ground truth,
+    so it fires ONLY for payroll reporters (employer/bank) with explicit
+    confirm semantics and no denial. Anything else stays unlinked (unlinked
+    amend_amount facts are ignored downstream by conflict_resolver, which
+    requires event_id). Fail-closed: a missed link keeps the conservative
+    UNKNOWN path; a false link would rewrite scheduled income.
+    """
+    from affordai.evidence.message_income import CONFIRM_RE, DENY_RE
     from affordai.evidence.message_interpreter import SALARY_RE
 
+    if (message.get("source_type") or "") not in ("employer", "bank"):
+        return
     text = message.get("message_text") or ""
     if not SALARY_RE.search(text):
+        return
+    if not CONFIRM_RE.search(text):
+        return
+    if DENY_RE.search(text):
         return
     req_date = ctx.request["request_date"]
     candidates = sorted(
@@ -846,7 +861,7 @@ def decide_context(
     candidates, gen_notes = payment_plans.generate(
         state, ctx.payment_options, safe, earliest, req["allows_partial_payment"]
     )
-    targets = spending_changes.candidate_targets(state, ctx.profile)
+    targets = spending_changes.candidate_targets(state, ctx.profile, tables["rates"])
     candidates = candidates + spending_changes.find_variants(state, candidates, targets, state.deadline)
     eligible = filter_candidates(
         candidates, ctx.profile, req["allows_partial_payment"], req["desired_completion_date"]

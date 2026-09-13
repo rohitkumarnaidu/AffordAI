@@ -314,17 +314,55 @@ def test_rules_derive_full_mapping():
         Candidate("wait", [(d, Decimal("1"))], total_paid=Decimal("1"))) == ("affordable_later", "wait")
 
 
-# ---- Sections 39/40: LLM boundary + determinism ----
+# ---- Sections 39/40: LLM boundary + determinism (Sec 44 F1: hardened) ----
 
 def test_no_llm_or_clock_in_deterministic_core():
+    """The deterministic core must not import/call LLM, clock, RNG, threads.
+
+    Scans EVERY module in finance/ + decision/ (globbed -- no hardcoded
+    subset to silently drift out of coverage). Each hit is judged per-line:
+    a token is allowed ONLY on docstring-prose/comment lines (stripped line
+    starts with '#', a quote, or a backtick), so temporal.py's "no
+    date.today() anywhere" docstring stays green while a real call on a code
+    line fails. pipeline.py is pinned structurally: no clock/RNG tokens and
+    exactly 2 propose_facts call sites (message + image evidence paths).
+    Behavioral side (hostile LLM proposals dropped at the gate) is covered in
+    tests/security/test_sec31_32.py::test_31_*.
+    """
     import pathlib
-    core = ["forecast.py", "payment_plans.py", "optimizer.py", "spending_changes.py"]
-    dec = ["eligibility.py", "rules.py", "decision.py", "invariants.py"]
-    for rel in [f"src/affordai/finance/{n}" for n in core] + [f"src/affordai/decision/{n}" for n in dec]:
-        text = pathlib.Path(rel).read_text(encoding="utf-8")
-        for token in ("propose_facts", "llm_adapter", "openai", "anthropic",
-                      "date.today", "datetime.now", "random."):
-            assert token not in text, f"{rel} contains {token!r}"
+    call_tokens = (
+        "propose_facts", "llm_adapter", "openai", "anthropic", "groq",
+        "google.generativeai", "langchain",
+        "import random", "random.", "import time", "time.time", "time.sleep",
+        "datetime.now(", "date.today(", "os.urandom", "uuid4",
+        "threading", "multiprocessing", "asyncio",
+        "__import__(", "eval(", "exec(",
+    )
+    modules = sorted(pathlib.Path("src/affordai/finance").glob("*.py"))
+    modules += sorted(pathlib.Path("src/affordai/decision").glob("*.py"))
+    assert len(modules) >= 13, f"core module set shrank unexpectedly: {modules}"
+    for path in modules:
+        if path.name == "__init__.py":
+            continue
+        for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            stripped = line.strip()
+            if not stripped or stripped[0] in "#'\"`":
+                continue  # comment / docstring-prose line, not code
+            for token in call_tokens:
+                assert token not in line, f"{path}:{lineno} code line contains {token!r}: {stripped[:120]}"
+
+
+def test_pipeline_llm_call_sites_pinned():
+    """pipeline.py: LLM reachable only via the 2 gated evidence paths; no clocks/RNG."""
+    import pathlib
+    text = pathlib.Path("src/affordai/pipeline.py").read_text(encoding="utf-8")
+    assert text.count("propose_facts(") == 2, "LLM call sites changed -- re-audit the AI boundary"
+    for token in ("date.today(", "datetime.now(", "import random", "random.",
+                  "time.sleep", "os.urandom", "threading", "multiprocessing",
+                  "asyncio", "openai", "anthropic"):
+        assert token not in text, f"pipeline.py contains {token!r}"
+    # The single wall-clock read feeds request-trace timing only, never finance.
+    assert text.count("time.time(") <= 2, "new wall-clock use in pipeline -- verify it cannot reach numerics"
 
 
 def test_chain_deterministic_double_run():
