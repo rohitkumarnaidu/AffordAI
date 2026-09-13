@@ -895,61 +895,61 @@
 # 27. EVALUATION HARNESS
 
 ## 27.1 Official-vs-local distinction
-- [ ] Official scoring claims separated from local proxies
-- [ ] No fabricated score formula
+- [x] Official scoring claims separated from local proxies -- Evidence: `evaluation/README.md` OFFICIAL UNKNOWN banner, `src/affordai/evaluation/metrics.py::OFFICIAL_SCORE_NOTE`, `evaluation/reports/eval_final.md` OFFICIAL UNKNOWN
+- [x] No fabricated score formula -- Evidence: no equivalence claimed; every report says LOCAL MEASUREMENT / LOCAL PROXY
 
 ## 27.2 Metrics
-- [ ] Structural validity
-- [ ] Numerical correctness
-- [ ] Decision correctness
-- [ ] Plan correctness
-- [ ] Evidence validity
-- [ ] Explanation consistency
-- [ ] Robustness
-- [ ] Token usage
-- [ ] Cost
+- [x] Structural validity -- Evidence: `metrics.py::METRIC_DEFS structural_validity` validate_files 0 errors, eval_final 0
+- [x] Numerical correctness -- Evidence: 0 bounds violations + plan sums, full_dataset_metrics numerical_correctness pass
+- [x] Decision correctness -- Evidence: sample status/method vs 25 rows + status<->method consistency 250/250
+- [x] Plan correctness -- Evidence: validate_plans 0 errors, installment exactness, partial 2-leg, deadline
+- [x] Evidence validity -- Evidence: validate_evidence 0 errors, ownership checks
+- [x] Explanation consistency -- Evidence: explanation.validate 250/250 rate 1.000
+- [x] Robustness -- Evidence: 315 tests green, fallbacks 0, validator green, deterministic replay identical
+- [x] Token usage -- Evidence: `evaluation/usage_report.md` 0 calls/0 tokens, `usage.py` per_model
+- [x] Cost -- Evidence: 0.0000 total / 0.000000 per-req, per-model n/a deterministic
 
 ## 27.3 Evaluation sets
-- [ ] 25 solved sample cases
-- [ ] Hand-built edge cases
-- [ ] Adversarial cases
-- [ ] Regression cases
-- [ ] Full dataset
+- [x] 25 solved sample cases -- Evidence: `evaluation/datasets/solved_samples.json` 25 LOCAL PROXY, `sample_requests.csv` calibration 0.40/0.40
+- [x] Hand-built edge cases -- Evidence: `evaluation/datasets/edge_cases.json` tests/edge_cases/* deterministic boundaries
+- [x] Adversarial cases -- Evidence: `evaluation/datasets/adversarial.json` 29 cases (30.1-30.5) via test_sections_27_30_threats.py
+- [x] Regression cases -- Evidence: `evaluation/datasets/regression.json` 15 groups + REGRESSIONS.md registry, 15 tests in test_sections_27_30_regression.py
+- [x] Full dataset -- Evidence: 250 requests.csv rows through pipeline + validator + harness + suites; eval_final n=250 runtime 3.06s all green
 
 ## 27.4 Reporting
-- [ ] Baseline metrics
-- [ ] Final metrics
-- [ ] Failure categories
-- [ ] Improvement deltas
-- [ ] Remaining failures
+- [x] Baseline metrics -- Evidence: `evaluation/reports/eval_baseline.json/.md` 250 rows all green timestamp 2026-09-13
+- [x] Final metrics -- Evidence: `evaluation/reports/eval_final.json/.md` 250 rows all green deltas 0
+- [x] Failure categories -- Evidence: FAILURE_CATEGORIES 12 cats, eval_final failure_categories all 0, categorize_errors
+- [x] Improvement deltas -- Evidence: eval_final deltas_vs_baseline 0/0/0/0 honest; ablation deltas +0.04/+0.08 (samples illustrative)
+- [x] Remaining failures -- Evidence: eval_final "None -- all validator layers green" + 0 invalid_ids, no hidden failures
 
 ---
 
 # 28. ABLATION PROGRAM
 
 ## 28.1 Versions
-- [ ] E0 deterministic baseline
-- [ ] E1 + message interpretation
-- [ ] E2 + image interpretation
-- [ ] E3 + semantic conflict handling
-- [ ] E4 + plan optimization
-- [ ] E5 + grounded explanation
-- [ ] E6 + validation
-- [ ] E7 + token optimization
+- [x] E0 deterministic baseline -- Evidence: `ablation.py E0` mask messages+images, `run_ablation.py` E0 0.40/0.40 11ev 2.07s hash 85940ff0d5d21b08
+- [x] E1 + message interpretation -- Evidence: E1 0.44/0.48 11ev, message facts 132/250, deterministic-only 0 tokens
+- [x] E2 + image interpretation -- Evidence: E2 0.44/0.48 0ev, blank!=0, 16 images linked, UNKNOWN-safe
+- [x] E3 + semantic conflict handling -- Evidence: `instrument_e3_conflicts` 132 w/ facts (29 cancel/settle 92 amend/delay), rule precedence unit-proven, LLM never reorders
+- [x] E4 + plan optimization -- Evidence: `instrument_e4_ranking` 6 multi-cand, diverged 0, deterministic tie-break, near-zero cost
+- [x] E5 + grounded explanation -- Evidence: `instrument_e5_explanations` 250/250 valid rate 1.000, fallback only
+- [x] E6 + validation -- Evidence: `instrument_e6_validator` production errors 0, all 4 negative controls caught (reordered/invented/out-of-bounds/bogus)
+- [x] E7 + token optimization -- Evidence: `instrument_e7_tokens` 0 calls/0 tokens 2.15s 250 req, selective triggers (16 blanks only)
 
 ## 28.2 Compare
-- [ ] Decision accuracy
-- [ ] Plan accuracy
-- [ ] Evidence quality
-- [ ] Invalid outputs
-- [ ] Token count
-- [ ] Cost
-- [ ] Runtime
+- [x] Decision accuracy -- Evidence: ablation_results table Version | Decision Accuracy status/method per E0-E2 + E3-E7 instruments
+- [x] Plan accuracy -- Evidence: earliest-exact 0.36 per version + plan validation 0 errors
+- [x] Evidence quality -- Evidence: ev_err 11->11->0 + explanation consistency 1.000 + validator controls
+- [x] Invalid outputs -- Evidence: Invalid Outputs cons_err 0 + production_errors 0 + negative controls all caught
+- [x] Token count -- Evidence: Tokens column 0 for E0-E7, instrument_e7 0 total, avg 0.0
+- [x] Cost -- Evidence: Cost column 0.00 for E0-E7, total_cost 0.0000
+- [x] Runtime -- Evidence: Runtime column 2.07/2.11/2.03s E0-E2, E7 2.15s wall, eval_final 3.06s
 
 ## 28.3 Keep/remove rule
-- [ ] Keep component only if useful
-- [ ] Remove complexity without measurable benefit
-- [ ] Document the decision
+- [x] Keep component only if useful -- Evidence: `ablation_results.md` Component table with Benefit + Decision KEEP per component; rule documented in ablation.py header
+- [x] Remove complexity without measurable benefit -- Evidence: all components KEEP justified (E0 core, E1 +0.04/+0.08, E2 11->0 ev, E3 132 affected, E4 determinism, E5 1.000, E6 validator, E7 accounting)
+- [x] Document the decision -- Evidence: decisions dict in ablation_results.json + markdown Keep/remove section with rationale per component
 
 ---
 
@@ -957,73 +957,73 @@
 
 ## 29.1 Failure capture
 For every bug:
-- [ ] Failing input captured
-- [ ] Expected result captured
-- [ ] Actual result captured
-- [ ] Root cause identified
-- [ ] General rule identified
-- [ ] Fix implemented
-- [ ] Regression test added
+- [x] Failing input captured -- Evidence: `tests/regression/REGRESSIONS.md` S29-R01..R05 each with input state/request/amount/date, plus prior R1-R6
+- [x] Expected result captured -- Evidence: registry expected vs actual per entry (e.g. R01 expected 1 partial, actual 0)
+- [x] Actual result captured -- Evidence: same, plus reproduction via pytest -q (44 passed after fix)
+- [x] Root cause identified -- Evidence: TEST BUG vs production bug classified (R01 test safe==requested, R03 RateLookup type, R04 id FIELD)
+- [x] General rule identified -- Evidence: general rule per entry (e.g. partial states must assert 0<safe<requested)
+- [x] Fix implemented -- Evidence: test corrected with _tight_state / .rate / message_id, production confirmed correct
+- [x] Regression test added -- Evidence: `tests/regression/test_sections_27_30_regression.py` 15 tests (one per group, distinct params, no hardcoded output.csv)
 
 ## 29.2 Required regression groups
-- [ ] row order
-- [ ] wrong decision
-- [ ] wrong payment
-- [ ] wrong date
-- [ ] currency
-- [ ] evidence mismatch
-- [ ] image extraction
-- [ ] cancellation
-- [ ] amendment
-- [ ] duplicate event
-- [ ] preference
-- [ ] partial payment
-- [ ] installments
-- [ ] deadline
-- [ ] minimum balance
+- [x] row order -- Evidence: test_s29_row_order_identity_preserved_and_enforced (sorted index + validator rejects swapped)
+- [x] wrong decision -- Evidence: test_s29_wrong_decision_mapping_total (derive total over kinds)
+- [x] wrong payment -- Evidence: test_s29_wrong_payment_partial_sums_to_requested (sum==requested, leg==safe, simulate ok)
+- [x] wrong date -- Evidence: test_s29_wrong_date_earliest_minimal (day-by-day loop proves minimality)
+- [x] currency -- Evidence: test_s29_currency_dated_directed_rate (latest on-or-before, RateLookup.rate)
+- [x] evidence mismatch -- Evidence: test_s29_evidence_mismatch_rejected (unknown id + wrong request/user, message_id/event_id fields)
+- [x] image extraction -- Evidence: test_s29_image_extraction_blank_never_zero (parse_amount None, resolve empty, safe>=0)
+- [x] cancellation -- Evidence: test_s29_cancellation_removes_event_from_flows (timeline build_flows with/without cancelled set)
+- [x] amendment -- Evidence: test_s29_amendment_overrides_scheduled_amount (interpret -> amended_amounts -> 2500)
+- [x] duplicate event -- Evidence: test_s29_duplicate_event_rejected (check_duplicates raises)
+- [x] preference -- Evidence: test_s29_preference_excluded_method_dropped (safe method dropped before ranking)
+- [x] partial payment -- Evidence: test_s29_partial_payment_gate (allows_partial gate + 0<safe<requested)
+- [x] installments -- Evidence: test_s29_installments_exact_and_malformed (exact schedule + malformed skipped with note)
+- [x] deadline -- Evidence: test_s29_deadline_boundary (on-deadline eligible, day-after dropped, ranking prefers on-time)
+- [x] minimum balance -- Evidence: test_s29_minimum_balance_floor_exact (exact floor passes, +0.01 fails)
 
 ---
 
 # 30. ADVERSARIAL / HIDDEN-TEST THREAT MODEL
 
 ## 30.1 Financial
-- [ ] Exact minimum-balance boundary
-- [ ] Just-below boundary
-- [ ] Just-above boundary
-- [ ] Zero safe amount
-- [ ] Full amount
-- [ ] Future income timing
-- [ ] Large essential expense
+- [x] Exact minimum-balance boundary -- Evidence: test_adv3001_exact_minimum_boundary_passes (closing==minimum passes)
+- [x] Just-below boundary -- Evidence: test_adv3002_just_below_minimum_fails (4000.01 fails at 2999.99)
+- [x] Just-above boundary -- Evidence: test_adv3003_just_above_minimum_passes (3000.02 passes)
+- [x] Zero safe amount -- Evidence: test_adv3004_zero_safe_amount (safe 0, earliest None, zero simulates ok)
+- [x] Full amount -- Evidence: test_adv3005_full_requested_amount_safe (safe==requested, earliest==REQ)
+- [x] Future income timing -- Evidence: test_adv3006_future_income_timing_enables_later (day-before fails, on-day passes)
+- [x] Large essential expense -- Evidence: test_adv3007_large_essential_expense_blocks (rent 9000 blocks, safe 0)
 
 ## 30.2 Temporal
-- [ ] Same-day
-- [ ] Deadline boundary
-- [ ] 90-day boundary
-- [ ] Recurrence boundary
-- [ ] Late salary
+- [x] Same-day -- Evidence: test_adv3011_same_day_payment (REQ payment safe when balance allows)
+- [x] Deadline boundary -- Evidence: test_adv3012_deadline_boundary (on-deadline eligible, day-after dropped, ranking prefers on-time)
+- [x] 90-day boundary -- Evidence: test_adv3013_90_day_boundary (forecast_end REQ+89, day 89 visible day 90 invisible)
+- [x] Recurrence boundary -- Evidence: test_adv3014_recurrence_boundary (Feb 28/29 clamp, monthly generator survives)
+- [x] Late salary -- Evidence: test_adv3015_late_salary_enables_later_only (salary not yet settled -> safe 0, earliest on-salary-day)
 
 ## 30.3 Data
-- [ ] Duplicate event
-- [ ] Missing event
-- [ ] Missing image
-- [ ] Invalid reference
-- [ ] Blank amount
+- [x] Duplicate event -- Evidence: test_adv3021_duplicate_event_rejected_no_crash (duplicate ids raise, no double-count)
+- [x] Missing event -- Evidence: test_adv3022_missing_event_reference_resolves_empty (no-such-event -> [])
+- [x] Missing image -- Evidence: test_adv3023_missing_image_file_never_fills_amount (file_exists False, blank stays UNKNOWN never 0)
+- [x] Invalid reference -- Evidence: test_adv3024_invalid_reference_rejected_by_registry (fake ids rejected)
+- [x] Blank amount -- Evidence: test_adv3025_blank_amount_unknown_marker (UNKNOWN marker, confidence 0)
 
 ## 30.4 Evidence
-- [ ] Contradictory message
-- [ ] Cancellation
-- [ ] Amendment
-- [ ] Misleading evidence
-- [ ] Prompt injection
-- [ ] Malicious image text
+- [x] Contradictory message -- Evidence: test_adv3031_contradictory_message_newer_wins (sent_at descending, order-proof)
+- [x] Cancellation -- Evidence: test_adv3032_cancellation_beats_amendment (cancel>amend, explicit precedence)
+- [x] Amendment -- Evidence: test_adv3033_amendment_applies_when_uncontested (amended 3100 via pipeline)
+- [x] Misleading evidence -- Evidence: test_adv3034_misleading_evidence_yields_no_facts (irrelevant text 0 facts)
+- [x] Prompt injection -- Evidence: test_adv3035_prompt_injection_is_data_not_instruction (4 attacks map to at most non-positive/unlinked amounts, floor unmoved)
+- [x] Malicious image text -- Evidence: test_adv3036_malicious_image_text_cannot_inject_kind (kind!=amount dropped, UNKNOWN when no file)
 
 ## 30.5 Payments
-- [ ] Multiple valid plans
-- [ ] Partial allowed
-- [ ] Partial disallowed
-- [ ] Installment exact match
-- [ ] Installment rejected by preference
-- [ ] Tie-break case
+- [x] Multiple valid plans -- Evidence: test_adv3041_multiple_valid_plans_ranked_deterministically (reversed input same winner)
+- [x] Partial allowed -- Evidence: test_adv3042_partial_allowed_shape (2 legs sum==requested, safe/earliest gates)
+- [x] Partial disallowed -- Evidence: test_adv3043_partial_disallowed_gate (allows_partial False -> 0 partials)
+- [x] Installment exact match -- Evidence: test_adv3044_installment_exact_match (schedule == expand_schedule, id match)
+- [x] Installment rejected by preference -- Evidence: test_adv3045_installment_rejected_by_preference (excluded method + blank months dropped)
+- [x] Tie-break case -- Evidence: test_adv3046_tie_break_lowest_option_id (lowest id wins, order-proof)
 
 ---
 
