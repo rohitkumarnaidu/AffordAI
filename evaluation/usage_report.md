@@ -1,15 +1,16 @@
-# Usage Report — FINAL full-dataset run (to be filled by metered run)
+# Usage Report — FINAL full-dataset run
 
-> Placeholder. The final run that produces `output.csv` must fill this file with measured values.
+- Model provider: (deterministic E0, none)
+- Model name(s): (none)
+- Model calls: 0
+- Input tokens: 0
+- Output tokens: 0
+- Total tokens: 0
+- Average tokens/request: 0.0
+- Estimated total cost: 0.00 (no model calls)
+- Estimated cost/request: 0.00
+- Requests processed: 250
+- Wall runtime (s): 2.4
+- Note: deterministic E0 (llm: LLM_ENABLED != 1)
 
-- Model provider:
-- Model name(s):
-- Model calls:
-- Input tokens:
-- Output tokens:
-- Total tokens:
-- Average tokens/request:
-- Estimated total cost:
-- Estimated cost/request:
-
-Per-model breakdown (if multiple models): (pending)
+Per-model breakdown (if multiple models): n/a — deterministic run.
