@@ -120,6 +120,13 @@ class EvidenceRegistry:
         if fact.image_id is not None and self._valid_image_ids is not None and fact.image_id not in self._valid_image_ids:
             self._record_rejection(fact, f"unknown image_id {fact.image_id}")
             raise EvidenceError(f"evidence {fact.source_id}: unknown image_id {fact.image_id}")
+        try:
+            _conf_finite = fact.confidence.is_finite()
+        except Exception:
+            _conf_finite = False
+        if not _conf_finite:
+            self._record_rejection(fact, f"non-finite confidence {fact.confidence!r}")
+            raise EvidenceError(f"evidence {fact.source_id}: non-finite confidence rejected")
         if not (Decimal("0") <= fact.confidence <= Decimal("1")):
             self._record_rejection(fact, f"bad confidence {fact.confidence}")
             raise EvidenceError(f"evidence {fact.source_id}: bad confidence")

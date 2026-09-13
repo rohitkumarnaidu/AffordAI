@@ -1,4 +1,4 @@
-"""Financial invariant checker — blocks submission on violation.
+"""Financial invariant checker -- blocks submission on violation.
 
 Re-simulation hooks (balance floor, deadline, totals) attach in Milestone 2.
 Bounds/consistency checks are live from Milestone 1.

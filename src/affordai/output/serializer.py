@@ -1,7 +1,7 @@
 """Deterministic CSV serialization (exact columns/order/row identity).
 
 Section 25 invariant:
-    Serializer is deliberately boring — it converts the canonical Decision
+    Serializer is deliberately boring -- it converts the canonical Decision
     into the exact official 8-column schema. It must NOT make business
     decisions, recompute amounts/dates/totals, or alter the Decision.
 
@@ -49,7 +49,7 @@ def format_date(d) -> str:
 def format_plan(payments: list[tuple] | None, currency: str) -> str:
     """Format payments as YYYY-MM-DD:amount|... or 'none' (Section 25.7).
 
-    Derives directly from canonical plan — does not recompute amounts/dates/totals.
+    Derives directly from canonical plan -- does not recompute amounts/dates/totals.
     Chronology is enforced by caller; this formatter preserves order.
     """
     if not payments:
@@ -114,7 +114,7 @@ def decisions_to_rows(decisions: list, home_by_request: dict[str, str]) -> list[
         if home is None:
             # Fallback to Decision's own home if mapping missing (defense in depth)
             home = getattr(d, "home_currency", None) or "INR"
-        # Serializer must NOT recompute financial decision — only format validated fields
+        # Serializer must NOT recompute financial decision -- only format validated fields
         plan = (
             d.payment_plan
             if isinstance(d.payment_plan, str)

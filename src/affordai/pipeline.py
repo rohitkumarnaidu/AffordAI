@@ -21,7 +21,12 @@ from affordai.evidence.image_interpreter import (
 )
 from affordai.evidence.llm_adapter import (
     LlmConfig,
+    check_batch_safe,
     load_config_from_env,
+    minimize_image_context,
+    minimize_message_context,
+    needs_llm_for_image,
+    needs_llm_for_messages,
     propose_facts,
 )
 from affordai.evidence.message_interpreter import interpret as interpret_message
@@ -577,13 +582,22 @@ def _collect_evidence(
     media_dir: str,
     llm_config: LlmConfig,
     trace: Trace | None,
-) -> tuple[EvidenceRegistry, list[str]]:
-    """Deterministic evidence + optional LLM proposals (validated or dropped)."""
+) -> tuple[EvidenceRegistry, list[str], list]:
+    """Deterministic evidence + optional LLM proposals (validated or dropped).
+
+    Sec 32.2: selective LLM calls -- message model only when semantic
+    interpretation may add value beyond the deterministic pass; image model
+    only for blank amounts with a linked file. Request isolation enforced
+    via `check_batch_safe` (one request/user per call). Returns
+    (registry, used_ids, records) where records are secret-safe.
+    """
     valid_event_ids = {e["event_id"] for e in ctx.events}
     valid_message_ids = {m["message_id"] for m in ctx.messages}
     valid_image_ids = {i["image_id"] for i in ctx.images}
     registry = EvidenceRegistry(valid_event_ids, valid_message_ids, valid_image_ids)
     used: list[str] = []
+    records: list = []
+    det_fact_count = 0
     for message in sorted(ctx.messages, key=lambda m: (str(m["sent_at"]), m["message_id"])):
         for fact in interpret_message(message):
             if fact.kind == "amend_amount" and not fact.event_id:
@@ -598,13 +612,22 @@ def _collect_evidence(
             try:
                 registry.add(fact, ctx.request_id, ctx.user_id)
                 used.append(fact.source_id)
+                det_fact_count += 1
             except Exception:
                 continue
-    llm = propose_facts(
-        "message",
-        {"request_id": ctx.request_id, "n_messages": len(ctx.messages)},
-        llm_config,
-    )
+    # Sec 32.2 selective message call
+    from affordai.evidence.llm_adapter import AdapterResult as _AdapterResult
+
+    llm: _AdapterResult = _AdapterResult(facts=[], calls=0, fallback_reason="selective-skip")
+    if llm_config.enabled and needs_llm_for_messages(ctx.messages, det_fact_count):
+        check_batch_safe([ctx.request_id], [ctx.user_id])
+        minimized = [minimize_message_context(m) for m in ctx.messages]
+        llm = propose_facts(
+            "message",
+            {"request_id": ctx.request_id, "messages": minimized},
+            llm_config,
+        )
+    records.extend(getattr(llm, "records", []))
     for fact in llm.facts:
         if fact.confidence < llm_config.min_confidence:
             continue
@@ -624,14 +647,16 @@ def _collect_evidence(
         linked = resolve_images_for_event(
             event["event_id"], ctx.images, media_dir
         )
-        img_proposals = propose_facts(
-            "image_amount",
-            {
-                "event_id": event["event_id"],
-                "images": [d["image_id"] for d in linked if d["file_exists"]],
-            },
-            llm_config,
-        )
+        existing = [d["image_id"] for d in linked if d["file_exists"]]
+        img_proposals: _AdapterResult = _AdapterResult(facts=[], calls=0, fallback_reason="selective-skip")
+        if llm_config.enabled and needs_llm_for_image(event["amount"], len(existing)):
+            check_batch_safe([ctx.request_id], [ctx.user_id])
+            img_proposals = propose_facts(
+                "image_amount",
+                minimize_image_context(event["event_id"], existing),
+                llm_config,
+            )
+            records.extend(getattr(img_proposals, "records", []))
         filled = False
         for fact in img_proposals.facts:
             # Zero-trust: image path may only emit amount facts; any other kind (e.g. injected cancel) is dropped
@@ -674,7 +699,7 @@ def _collect_evidence(
             ctx.request_id,
             f"{len(registry)} facts, llm_fallback={llm.fallback_reason}",
         )
-    return registry, used
+    return registry, used, records
 
 
 def decide_context(
@@ -683,6 +708,7 @@ def decide_context(
     dataset_dir: str,
     llm_config: LlmConfig | None = None,
     trace: Trace | None = None,
+    out_records: list | None = None,
 ) -> Decision:
     llm_config = llm_config or LlmConfig()
     media_dir = os.path.join(dataset_dir, "media", "images")
@@ -691,7 +717,9 @@ def decide_context(
     requested = req["requested_amount"]
     req_date = req["request_date"]
 
-    registry, _used = _collect_evidence(ctx, media_dir, llm_config, trace)
+    registry, _used, _records = _collect_evidence(ctx, media_dir, llm_config, trace)
+    if out_records is not None:
+        out_records.extend(_records)
     facts = registry.facts_for(ctx.request_id)
     cancelled = conflict_resolver.cancelled_event_ids(facts)
     # Message-confirmed salary: narrow deterministic E1 (employer confirms).
@@ -766,7 +794,7 @@ def decide_context(
         )
     )
     earliest_str = earliest.isoformat() if earliest else ""
-    # Explanation facts — validated subset for grounded explanation
+    # Explanation facts -- validated subset for grounded explanation
     explanation_facts = {
         "request_id": ctx.request_id,
         "amount_safe_to_pay": safe,
@@ -861,7 +889,7 @@ def _fallback_decision(
     """Safest valid decision when a request cannot be processed: never crash.
 
     Preserves capacity information (safe amount + earliest date) when it can
-    be derived, otherwise falls back to 0/"" — never invents a plan.
+    be derived, otherwise falls back to 0/"" -- never invents a plan.
     `earliest` may be date or ""/None.
     """
     from datetime import date as _date
@@ -953,7 +981,7 @@ def _decide_safe(
         earliest_preserve = None
         try:
             # Re-derive minimal state for capacity (no LLM, deterministic)
-            registry, _ = _collect_evidence(ctx, os.path.join(dataset_dir, "media", "images"), llm_config, None)
+            registry, _, _ = _collect_evidence(ctx, os.path.join(dataset_dir, "media", "images"), llm_config, None)
             facts = registry.facts_for(ctx.request_id)
             cancelled = conflict_resolver.cancelled_event_ids(facts)
             extra_preserve: list[tuple] = []
@@ -1005,18 +1033,41 @@ def run(
     contexts = build_contexts(tables)
     decisions: list[Decision] = []
     fallbacks = 0
+    all_records: list = []
     for ctx in contexts:
-        decision, failed = _decide_safe(ctx, tables, dataset_dir, llm_config, trace)
+        recs: list = []
+        try:
+            decision = decide_context(ctx, tables, dataset_dir, llm_config, trace, out_records=recs)
+            failed = False
+        except Exception as exc:
+            if trace is not None:
+                trace.record("decision-fallback", ctx.request_id, f"{type(exc).__name__}: {exc}"[:200])
+            decision, failed = _decide_safe(ctx, tables, dataset_dir, llm_config, trace)
+            # recs already captured from the failing decide_context attempt (partial); keep them
         decisions.append(decision)
-        fallbacks += failed
+        fallbacks += int(failed)
+        all_records.extend(recs)
     decisions.sort(key=lambda d: d.original_index)
+    total_in = sum(getattr(r, "input_tokens", 0) for r in all_records)
+    total_out = sum(getattr(r, "output_tokens", 0) for r in all_records)
+    total_calls = len(all_records)
+    # Per-model aggregation for usage report (secret-safe: no prompt text)
+    per_model: dict[tuple[str, str], dict] = {}
+    for r in all_records:
+        key = (getattr(r, "provider", "") or "", getattr(r, "model", "") or "")
+        bucket = per_model.setdefault(key, {"calls": 0, "input_tokens": 0, "output_tokens": 0})
+        bucket["calls"] += 1
+        bucket["input_tokens"] += getattr(r, "input_tokens", 0)
+        bucket["output_tokens"] += getattr(r, "output_tokens", 0)
     usage = UsageReport(
         provider=llm_config.provider,
         model=llm_config.model,
-        calls=0,
-        input_tokens=0,
-        output_tokens=0,
-        note=f"deterministic E0 (llm: {llm_config.reason})",
+        calls=total_calls,
+        input_tokens=total_in,
+        output_tokens=total_out,
+        note=f"deterministic E0 (llm: {llm_config.reason})" if not total_calls else f"metered ({total_calls} calls)",
+        per_model=per_model,
+        records=all_records,
     )
     return decisions, {
         "usage": usage,

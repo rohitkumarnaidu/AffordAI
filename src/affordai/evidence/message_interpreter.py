@@ -83,7 +83,7 @@ def interpret(message: dict) -> list[Evidence]:
                 **base,
             )
         )
-    # Payment preference (advisory, does not directly gate eligibility — deterministic profile does)
+    # Payment preference (advisory, does not directly gate eligibility -- deterministic profile does)
     for pref_kind, rx in _PREF_PATTERNS:
         if rx.search(text):
             facts.append(

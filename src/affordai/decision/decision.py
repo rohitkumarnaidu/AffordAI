@@ -1,4 +1,4 @@
-"""Canonical decision object — single source of truth before CSV.
+"""Canonical decision object -- single source of truth before CSV.
 
 Immutability invariant (Section 22.10 / 4.10):
     Once finalized, the Decision is the authoritative source for CSV,
@@ -16,7 +16,7 @@ from typing import Any
 
 @dataclass(frozen=True)
 class Decision:
-    """One Decision per request — all downstream output derives from it.
+    """One Decision per request -- all downstream output derives from it.
 
     Required output fields (official 8 columns) are stored as CSV-ready
     strings except amount_safe_to_pay which is Decimal for exact
@@ -37,7 +37,7 @@ class Decision:
     earliest_date_for_full_payment: str
     spending_changes_needed: str
     decision_explanation: str
-    # Provenance — immutable (tuple) + structured facts (frozen dict view)
+    # Provenance -- immutable (tuple) + structured facts (frozen dict view)
     evidence: tuple = field(default_factory=tuple)
     explanation_facts: dict = field(default_factory=dict)
     # Internal validation helpers (not in CSV)
@@ -75,7 +75,7 @@ class Decision:
             raise ValueError(f"Decision {self.request_id}: unknown status {self.affordability_status!r}")
         if self.recommended_payment_method not in METHODS:
             raise ValueError(f"Decision {self.request_id}: unknown method {self.recommended_payment_method!r}")
-        # Cross-field consistency (Section 23.2) — enforced here, not only in validator
+        # Cross-field consistency (Section 23.2) -- enforced here, not only in validator
         from affordai.decision.invariants import check_earliest_consistency, check_status_method_consistency
 
         if not check_status_method_consistency(self.affordability_status, self.recommended_payment_method):

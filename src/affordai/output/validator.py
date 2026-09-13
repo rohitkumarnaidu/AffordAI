@@ -1,4 +1,4 @@
-"""Output schema + contract validator — FINAL GATE (Section 26).
+"""Output schema + contract validator -- FINAL GATE (Section 26).
 
 Structural layer (validate_files): columns/order/count/IDs/bounds/enums/
 status-method/earliest consistency.
@@ -150,7 +150,7 @@ def validate_files(requests_path: str, output_path: str) -> list[str]:
         # 26.3 empty numeric fields already caught; check decimal precision (allow bare int or 2dp)
         # (No hard error, but flag malformed)
         if safe_raw.strip() != "" and not re.match(r"^-?\d+(\.\d{1,2})?$", safe_raw.strip()):
-            # Allow scientific? No—reject
+            # Allow scientific? No--reject
             if not re.match(r"^-?\d+(\.\d+)?$", safe_raw.strip()):
                 errors.append(f"OUTPUT-NUM-003/error row {i} ({rid}): malformed safe amount {safe_raw!r}")
     # 26.2 missing IDs (set vs order)

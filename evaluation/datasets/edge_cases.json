@@ -1,0 +1,1 @@
+{"provenance": "LOCAL MEASUREMENT (hand-built deterministic cases)", "suites": ["tests/edge_cases/test_boundaries.py", "tests/edge_cases/test_sections_12_14_edges.py"], "suite": "B-edge-cases"}

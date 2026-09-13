@@ -35,7 +35,7 @@ def main() -> int:
         print(f"FAIL: {len(errors)} error(s)")
         for e in errors[:50]:
             print(" -", e)
-        # 26.11: any hard failure blocks finalization — exit 1
+        # 26.11: any hard failure blocks finalization -- exit 1
         return 1
     print("PASS: output.csv valid (structural + plan layers)")
     # Note: evidence/consistency/safety layers require Decisions+Contexts and are

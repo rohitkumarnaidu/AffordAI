@@ -38,13 +38,13 @@ def compare(decisions: list, sample_path: str) -> dict:
         "safe_mae": str(mae),
         "status_mix": dict(Counter(d.affordability_status for d in got.values())),
         "method_mix": dict(Counter(d.recommended_payment_method for d in got.values())),
-        "provenance": "LOCAL PROXY — sample_requests.csv are illustrative format "
+        "provenance": "LOCAL PROXY -- sample_requests.csv are illustrative format "
         "examples, NOT official eval labels. OFFICIAL score: UNKNOWN.",
     }
 
 
 # ---------------------------------------------------------------------------
-# Section 27.2 — required metric definitions (each reproducible).
+# Section 27.2 -- required metric definitions (each reproducible).
 # Fields: definition, numerator, denominator, pass/fail, official-or-local,
 # expected-truth source. No vague scores.
 # ---------------------------------------------------------------------------
@@ -74,7 +74,7 @@ METRIC_DEFS: dict[str, dict[str, str]] = {
         "denominator": "25 samples; 250 production rows",
         "pass_fail": "sample accuracy reported (no threshold claimed); "
         "consistency must be 250/250",
-        "official_or_local": "LOCAL PROXY — samples are NOT eval labels; OFFICIAL: UNKNOWN",
+        "official_or_local": "LOCAL PROXY -- samples are NOT eval labels; OFFICIAL: UNKNOWN",
         "truth_source": "sample_requests.csv (illustrative) + decision-matrix allowed pairs",
     },
     "plan_correctness": {

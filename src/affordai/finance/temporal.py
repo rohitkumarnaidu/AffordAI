@@ -44,7 +44,7 @@ def normalize_date(value: object, what: str = "date") -> date:
     """Normalize to a ``datetime.date`` (date-only semantics).
 
     Accepts ``date`` (identity) and ``datetime`` (truncated to its calendar
-    day — no timezone conversion is applied). Anything else raises
+    day -- no timezone conversion is applied). Anything else raises
     :class:`TemporalError` (never falls back to "today").
     """
     if isinstance(value, datetime):
@@ -110,7 +110,7 @@ def generate_monthly_occurrences(start: date, end: date, dom: int) -> list[date]
     """Pure monthly schedule within ``[start, end]`` on day-of-month ``dom``.
 
     Month-length aware (clamped); duplicate-free; terminating. ``end < start``
-    yields ``[]`` (recurrence outside the forecast produces nothing — it is
+    yields ``[]`` (recurrence outside the forecast produces nothing -- it is
     never an error to have zero occurrences).
     """
     start = normalize_date(start, "start")

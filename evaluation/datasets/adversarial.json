@@ -1,0 +1,1 @@
+{"coverage": "30.1 financial x7, 30.2 temporal x5, 30.3 data x5, 30.4 evidence x6, 30.5 payment x6", "provenance": "LOCAL MEASUREMENT (threat-model derived, Section 30)", "suites": ["tests/adversarial/test_untrusted.py", "tests/adversarial/test_sections_12_14_adversarial.py", "tests/adversarial/test_sections_27_30_threats.py"], "suite": "C-adversarial"}

@@ -1,0 +1,230 @@
+{
+ "decisions": {
+  "E0 deterministic baseline": "KEEP -- required core; 0 tokens, validator green",
+  "E1 message interpretation": "KEEP -- sample status +0.04/method +0.08 vs E0; facts reach 132/250 requests; deterministic-only, 0 tokens",
+  "E2 image linkage": "KEEP (as UNKNOWN-safe linkage) -- evidence errors 11->0; blank!=0 enforced",
+  "E3 conflict handling": "KEEP -- precedence unit-proven; deterministic authority, LLM never reorders",
+  "E4 optimizer": "KEEP -- deterministic tie-break guarantee (unit-proven); 6 multi-candidate requests, diverged 0; near-zero cost so determinism justifies it",
+  "E5 grounded explanation": "KEEP -- consistency 250/250; fallback only, never recomputes finance",
+  "E6 validation": "KEEP -- production errors 0; all_controls_caught=True",
+  "E7 token accounting": "KEEP -- 0 calls / 0 tokens at equal accuracy; selective triggers keep runtime bounded"
+ },
+ "deltas": {
+  "E1_minus_E0_method": 0.08,
+  "E1_minus_E0_status": 0.04,
+  "E2_minus_E1_evidence_errors": -11,
+  "E2_minus_E1_method": 0.0,
+  "E2_minus_E1_status": 0.0,
+  "note": "Sample rows are illustrative format examples, NOT eval labels; deltas are calibration diagnostics, not official gains."
+ },
+ "generated_by": "scripts/run_ablation.py",
+ "production_hash": "620bff42124b0c3d",
+ "result_kind": "LOCAL MEASUREMENT (OFFICIAL score UNKNOWN)",
+ "versions": {
+  "E0": {
+   "adds": "deterministic baseline (structured data only)",
+   "consistency_errors": 0,
+   "consistency_errors_sample": [],
+   "decision_hash": "85940ff0d5d21b08",
+   "evidence_errors": 11,
+   "evidence_errors_sample": [
+    "OUTPUT-EVIDENCE-002/error request_33: evidence 'missing-image:event_3051' not in valid IDs for this request/user",
+    "OUTPUT-EVIDENCE-002/error request_35: evidence 'missing-image:event_3231' not in valid IDs for this request/user",
+    "OUTPUT-EVIDENCE-002/error request_48: evidence 'missing-image:event_4535' not in valid IDs for this request/user",
+    "OUTPUT-EVIDENCE-002/error request_55: evidence 'missing-image:event_5170' not in valid IDs for this request/user",
+    "OUTPUT-EVIDENCE-002/error request_64: evidence 'missing-image:event_6033' not in valid IDs for this request/user"
+   ],
+   "llm_calls": 0,
+   "method_mix": {
+    "full_payment": 22,
+    "installments": 19,
+    "not_recommended": 209
+   },
+   "n_requests": 250,
+   "result": "LOCAL MEASUREMENT",
+   "runtime_s": 2.07,
+   "sample_accuracy": {
+    "earliest_exact": 0.36,
+    "method_accuracy": 0.4,
+    "method_mix": {
+     "full_payment": 2,
+     "installments": 1,
+     "not_recommended": 22
+    },
+    "n_compared": 25,
+    "provenance": "LOCAL PROXY -- sample_requests.csv are illustrative format examples, NOT official eval labels. OFFICIAL score: UNKNOWN.",
+    "safe_mae": "1635303.7104",
+    "status_accuracy": 0.4,
+    "status_mix": {
+     "affordable_now": 1,
+     "affordable_with_plan": 2,
+     "not_affordable": 22
+    }
+   },
+   "status_mix": {
+    "affordable_now": 20,
+    "affordable_with_plan": 21,
+    "not_affordable": 209
+   },
+   "version": "E0"
+  },
+  "E1": {
+   "adds": "E0 + message interpretation (deterministic interpreter only)",
+   "consistency_errors": 0,
+   "consistency_errors_sample": [],
+   "decision_hash": "620bff42124b0c3d",
+   "evidence_errors": 11,
+   "evidence_errors_sample": [
+    "OUTPUT-EVIDENCE-002/error request_33: evidence 'missing-image:event_3051' not in valid IDs for this request/user",
+    "OUTPUT-EVIDENCE-002/error request_35: evidence 'missing-image:event_3231' not in valid IDs for this request/user",
+    "OUTPUT-EVIDENCE-002/error request_48: evidence 'missing-image:event_4535' not in valid IDs for this request/user",
+    "OUTPUT-EVIDENCE-002/error request_55: evidence 'missing-image:event_5170' not in valid IDs for this request/user",
+    "OUTPUT-EVIDENCE-002/error request_64: evidence 'missing-image:event_6033' not in valid IDs for this request/user"
+   ],
+   "llm_calls": 0,
+   "method_mix": {
+    "full_payment": 36,
+    "installments": 26,
+    "not_recommended": 182,
+    "wait": 6
+   },
+   "n_requests": 250,
+   "result": "LOCAL MEASUREMENT",
+   "runtime_s": 2.11,
+   "sample_accuracy": {
+    "earliest_exact": 0.36,
+    "method_accuracy": 0.48,
+    "method_mix": {
+     "full_payment": 3,
+     "installments": 2,
+     "not_recommended": 19,
+     "wait": 1
+    },
+    "n_compared": 25,
+    "provenance": "LOCAL PROXY -- sample_requests.csv are illustrative format examples, NOT official eval labels. OFFICIAL score: UNKNOWN.",
+    "safe_mae": "536528.0956",
+    "status_accuracy": 0.44,
+    "status_mix": {
+     "affordable_later": 1,
+     "affordable_now": 2,
+     "affordable_with_plan": 3,
+     "not_affordable": 19
+    }
+   },
+   "status_mix": {
+    "affordable_later": 6,
+    "affordable_now": 33,
+    "affordable_with_plan": 29,
+    "not_affordable": 182
+   },
+   "version": "E1"
+  },
+  "E2": {
+   "adds": "E1 + image interpretation linkage",
+   "consistency_errors": 0,
+   "consistency_errors_sample": [],
+   "decision_hash": "620bff42124b0c3d",
+   "evidence_errors": 0,
+   "evidence_errors_sample": [],
+   "llm_calls": 0,
+   "method_mix": {
+    "full_payment": 36,
+    "installments": 26,
+    "not_recommended": 182,
+    "wait": 6
+   },
+   "n_requests": 250,
+   "result": "LOCAL MEASUREMENT",
+   "runtime_s": 2.03,
+   "sample_accuracy": {
+    "earliest_exact": 0.36,
+    "method_accuracy": 0.48,
+    "method_mix": {
+     "full_payment": 3,
+     "installments": 2,
+     "not_recommended": 19,
+     "wait": 1
+    },
+    "n_compared": 25,
+    "provenance": "LOCAL PROXY -- sample_requests.csv are illustrative format examples, NOT official eval labels. OFFICIAL score: UNKNOWN.",
+    "safe_mae": "536528.0956",
+    "status_accuracy": 0.44,
+    "status_mix": {
+     "affordable_later": 1,
+     "affordable_now": 2,
+     "affordable_with_plan": 3,
+     "not_affordable": 19
+    }
+   },
+   "status_mix": {
+    "affordable_later": 6,
+    "affordable_now": 33,
+    "affordable_with_plan": 29,
+    "not_affordable": 182
+   },
+   "version": "E2"
+  },
+  "E3": {
+   "adds": "E2 + semantic conflict handling (instrumented)",
+   "n_requests": 250,
+   "requests_with_amend_or_delay": 92,
+   "requests_with_cancel_or_settle": 29,
+   "requests_with_message_facts": 132,
+   "result": "LOCAL MEASUREMENT",
+   "rule": "cancel/settle/amend > newer same-source > settled > safer; LLM never reorders",
+   "version": "E3"
+  },
+  "E4": {
+   "adds": "E3 + plan optimization ranking (instrumented)",
+   "multi_candidate_requests": 6,
+   "ranking_changed_winner": 0,
+   "result": "LOCAL MEASUREMENT",
+   "rule": "deadline -> no-changes -> min total -> earlier start -> fewer payments -> lowest option id",
+   "version": "E4"
+  },
+  "E5": {
+   "adds": "E4 + grounded explanation (instrumented)",
+   "checked": 250,
+   "consistency_rate": 1.0,
+   "invalid_ids": [],
+   "result": "LOCAL MEASUREMENT",
+   "rule": "facts subset of validated Decision; no invented amounts/dates/evidence",
+   "valid": 250,
+   "version": "E5"
+  },
+  "E6": {
+   "adds": "E5 + comprehensive validation (instrumented)",
+   "all_controls_caught": true,
+   "negative_controls": {
+    "bogus_plan_caught": true,
+    "invented_enum_caught": true,
+    "out_of_bounds_safe_caught": true,
+    "reordered_rows_caught": true
+   },
+   "note": "A validator catch is validator SUCCESS, not validator failure.",
+   "production_errors": 0,
+   "production_errors_sample": [],
+   "result": "LOCAL MEASUREMENT",
+   "version": "E6"
+  },
+  "E7": {
+   "adds": "E6 + token/cost optimization accounting",
+   "avg_tokens_per_request": 0.0,
+   "correctness_guard": "optimization valid only at equal accuracy -- verified by identical validator PASS + replay hash",
+   "estimated_cost_per_request": 0.0,
+   "estimated_total_cost": 0.0,
+   "input_tokens": 0,
+   "model": "(none)",
+   "model_calls": 0,
+   "n_requests": 250,
+   "output_tokens": 0,
+   "provider": "(deterministic E0 path, none)",
+   "result": "LOCAL MEASUREMENT",
+   "selective_triggers": "image resolution only for blank amounts (16); message interpreter deterministic-only; LLM off by default",
+   "total_tokens": 0,
+   "version": "E7",
+   "wall_runtime_s": 2.03
+  }
+ },
+ "wall_runtime_s": 23.7
+}

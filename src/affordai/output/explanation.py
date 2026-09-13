@@ -37,7 +37,7 @@ def build_facts(decision) -> dict:
 
 
 def build_fallback(facts: dict) -> str:
-    """Deterministic safe fallback — never invents, always valid."""
+    """Deterministic safe fallback -- never invents, always valid."""
     safe = facts.get("amount_safe_to_pay")
     status = facts.get("affordability_status", "not_affordable")
     method = facts.get("recommended_payment_method", "not_recommended")
@@ -86,7 +86,7 @@ def build_fallback(facts: dict) -> str:
 
 
 def build(decision, requested: str, request_date: str, home: str) -> str:
-    """Legacy builder (Decision-like + requested string) — delegates to grounded facts."""
+    """Legacy builder (Decision-like + requested string) -- delegates to grounded facts."""
     # Extract facts from decision (already validated) + supplied requested string
     safe = format_amount(decision.amount_safe_to_pay, home)
     earliest = decision.earliest_date_for_full_payment or "not in forecast"
@@ -109,7 +109,7 @@ def build(decision, requested: str, request_date: str, home: str) -> str:
 
 
 def validate(text: str, decision) -> bool:
-    """Explanation consistency gate — deterministic, no LLM self-check.
+    """Explanation consistency gate -- deterministic, no LLM self-check.
 
     Checks (Section 24.4 / 24.6):
         explanation amount == decision amount (via formatted safe)
@@ -130,7 +130,7 @@ def validate(text: str, decision) -> bool:
     # 2. Plan must appear when not "none" (and must not contradict)
     plan = getattr(decision, "payment_plan", "")
     if plan != "none" and plan not in text:
-        # Allow truncated? No—must be exact or explanation is incomplete
+        # Allow truncated? No--must be exact or explanation is incomplete
         # But we accept if plan is "none" is correctly represented
         return False
     if plan == "none" and "Plan: none" not in text and "plan none" not in text.lower():
@@ -172,7 +172,7 @@ def validate(text: str, decision) -> bool:
     # 7. If explanation mentions evidence IDs, they must be subset of decision.evidence
     # Heuristic: look for tokens like "evidence:" or bare IDs starting with msg_/img_/evt_?
     # For now, ensure no invented amount that doesn't match decision
-    # (Already checked safe amount; other numeric invented claims would need deeper NLP—out of scope for deterministic validator)
+    # (Already checked safe amount; other numeric invented claims would need deeper NLP--out of scope for deterministic validator)
     return True
 
 

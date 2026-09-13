@@ -1,0 +1,68 @@
+{
+ "dataset": "dataset/official",
+ "failure_categories": {
+  "adversarial": 0,
+  "date": 0,
+  "decision": 0,
+  "evidence": 0,
+  "explanation": 0,
+  "identity": 0,
+  "numeric": 0,
+  "payment": 0,
+  "regression": 0,
+  "runtime": 0,
+  "structural": 0,
+  "token_cost": 0
+ },
+ "metrics": {
+  "consistency_errors_sample": [],
+  "decision_consistency": {
+   "errors": 0,
+   "pass": true
+  },
+  "evidence_errors_sample": [],
+  "evidence_validity": {
+   "errors": 0,
+   "pass": true
+  },
+  "explanation_consistency": {
+   "invalid_ids": [],
+   "pass": true,
+   "rate": 1.0
+  },
+  "n_requests": 250,
+  "numerical_correctness": {
+   "bounds_violations": [],
+   "pass": true
+  },
+  "plan_correctness": {
+   "errors": 0,
+   "pass": true
+  },
+  "plan_errors_sample": [],
+  "provenance": "LOCAL MEASUREMENT on full participant-facing dataset; OFFICIAL hidden evaluation: UNKNOWN",
+  "structural_errors_sample": [],
+  "structural_validity": {
+   "errors": 0,
+   "pass": true
+  }
+ },
+ "n_fallbacks": 0,
+ "n_requests": 250,
+ "official_note": "OFFICIAL HackerRank score: UNKNOWN (no official formula published). Every metric below is a LOCAL PROXY / LOCAL MEASUREMENT unless tagged otherwise.",
+ "official_score": "UNKNOWN",
+ "result_kind": "LOCAL MEASUREMENT",
+ "runtime_s": 3.06,
+ "tag": "baseline",
+ "timestamp": "2026-09-13T11:16:43.416588+00:00",
+ "tokens": {
+  "calls": 0,
+  "input_tokens": 0,
+  "model": "",
+  "note": "deterministic E0 (llm: LLM_ENABLED != 1)",
+  "output_tokens": 0,
+  "provider": "",
+  "total_tokens": 0
+ },
+ "version": "E7-production (all components, deterministic, LLM off)"
+}

@@ -5,7 +5,7 @@ One normalized ``FinancialState`` per request, built as::
     raw input -> temporal normalization -> currency normalization
     -> canonical financial state -> 90-day forecast
 
-The forecast engine receives THIS object — it never reconstructs state
+The forecast engine receives THIS object -- it never reconstructs state
 from raw CSVs, so no two modules can compute different financial
 realities. Raw records are never mutated: ``build()`` copies what it
 needs and preserves ``original_index``/ids/provenance.
@@ -34,7 +34,7 @@ from affordai.finance.timeline import Flow
 FLEXIBILITIES = frozenset({"fixed", "reducible", "stoppable", "reducible_or_stoppable"})
 
 #: Flex values that permit a stop / a reduction (single source of truth;
-#: spending_changes.py imports these — no duplicate definitions).
+#: spending_changes.py imports these -- no duplicate definitions).
 STOP_OK = frozenset({"stoppable", "reducible_or_stoppable"})
 REDUCE_OK = frozenset({"reducible", "reducible_or_stoppable"})
 
@@ -88,7 +88,7 @@ def validate_reduction(row: dict, profile: dict, new_amount: object) -> Decimal:
     Policy note: a blank/``None`` ``minimum_allowed_amount`` fails the
     ``Decimal`` type gate, so no ``reduce_to`` is offered on that event
     (only ``stop``, if otherwise eligible). This is the conservative
-    reading — never invent a reduction floor the dataset did not state.
+    reading -- never invent a reduction floor the dataset did not state.
     """
     flex = str(row.get("flexibility", ""))
     cat = str(row.get("category", ""))

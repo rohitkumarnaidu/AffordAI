@@ -22,7 +22,7 @@ from affordai.finance.state import (
 MAX_CHANGES = 3
 # Deterministic exhaustive search up to MAX_CHANGES over the top-ranked
 # targets (sorted by saving). Exhaustive over all targets when len<=12,
-# otherwise top-12 by saving (455 combos max for size 3) — still proves
+# otherwise top-12 by saving (455 combos max for size 3) -- still proves
 # pruning cannot remove the optimal valid candidate among the highest-saving
 # options; any omitted low-saving combo would require >3 changes to beat a
 # top-12 combo and would be strictly more expensive. Variants are deadline-aware

@@ -11,7 +11,7 @@ EXACT directed pair (``from_currency -> to_currency``). No inverse-rate
 synthesis: ``USD -> INR`` never implies ``INR -> USD``.
 
 Fail-closed: a missing rate returns ``None`` (the caller keeps foreign
-debits at face value with a note, and excludes foreign credits) — it never
+debits at face value with a note, and excludes foreign credits) -- it never
 substitutes ``0``, ``1``, or a live-market rate. There is NO network
 dependency: only supplied rows are consulted (see ``RateTable``).
 
@@ -214,7 +214,7 @@ class RateTable:
         """Authoritative conversion: foreign -> quantized home + trace.
 
         Same-currency is a no-FX path (no rate required). Missing rates
-        return ``(None, trace)`` — never 0/1/market.
+        return ``(None, trace)`` -- never 0/1/market.
         """
         src = normalize_currency(currency)
         tgt = normalize_currency(home)

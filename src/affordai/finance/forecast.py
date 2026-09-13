@@ -54,7 +54,7 @@ def simulate(
     Caller contract: ``simulate`` decides balance-floor safety ONLY
     (``closing >= minimum`` every projected day). Deadline preference
     (``last payment <= desired_completion_date``) is enforced by the
-    caller chain — ``decision/eligibility.filter_candidates`` drops
+    caller chain -- ``decision/eligibility.filter_candidates`` drops
     late candidates before ranking (``optimizer`` re-applies it as
     rank rule 1). Do not treat ``simulate().ok`` as deadline approval.
     """
@@ -98,7 +98,7 @@ def max_safe_today(state) -> Decimal:
     return is clamped for the same invariant).
 
     Base-breach rule: if existing obligations already break the floor
-    with NO new payment, nothing is payable — return ``0`` (the search
+    with NO new payment, nothing is payable -- return ``0`` (the search
     loop would converge there anyway; the early return just skips the
     post-conditions, which assume a safe base).
     """

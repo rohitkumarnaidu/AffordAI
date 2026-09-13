@@ -76,7 +76,7 @@ def resolve(facts: list[Evidence]) -> list[Evidence]:
     tmp = list(facts)
     # Pass 3: tie-break asc
     tmp.sort(key=lambda f: (f.source_type, f.source_id))
-    # Pass 2: newer first (sent_at desc) — lexical desc == newer first for ISO-8601
+    # Pass 2: newer first (sent_at desc) -- lexical desc == newer first for ISO-8601
     tmp.sort(key=lambda f: f.sent_at or "", reverse=True)
     # Pass 1: explicit / method / settled asc
     tmp.sort(key=lambda f: (_explicit_rank(f), _method_rank(f), _settled_rank(f)))

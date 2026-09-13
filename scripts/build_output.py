@@ -1,6 +1,6 @@
 """End-to-end pipeline entry point: dataset -> deterministic decisions -> output.csv.
 
-Section 25: serializer is deliberately boring — converts canonical Decision
+Section 25: serializer is deliberately boring -- converts canonical Decision
 into exact 8-column schema via decisions_to_rows / write_output_csv.
 Section 26: final validator blocks submission on any hard error.
 """
@@ -29,9 +29,21 @@ def main() -> int:
     home_by_request = {c.request_id: c.profile["home_currency"] for c in contexts}
     result = run_dataset(args.dataset)
     decisions = result["decisions"]
+    runtime_s = result["runtime_s"]
+    usage = result["usage"]
+    # Sec 32.3: persist metered token report for the FINAL full-dataset run
+    import os as _os
+    usage_md = usage.to_markdown(result["n_requests"], runtime_s)
+    usage_path = _os.path.join("evaluation", "usage_report.md")
+    try:
+        with open(usage_path, "w", encoding="utf-8", newline="\n") as fh:
+            fh.write(usage_md)
+        print(f"usage report -> {usage_path} ({usage.calls} calls, {usage.total_tokens} tokens)")
+    except Exception as exc:
+        print(f"WARN: could not write {usage_path}: {exc}")
     # Section 25: exact 8 columns, order, one row per request, original order, CSV escaping
     write_output_csv(decisions, home_by_request, args.out)
-    # Section 26: final gate — validate before declaring success
+    # Section 26: final gate -- validate before declaring success
     from affordai.output.validator import validate_consistency, validate_evidence
 
     ev_errs = validate_evidence(decisions, contexts)
@@ -40,7 +52,7 @@ def main() -> int:
         print(f"WARN: post-serialization validator found {len(ev_errs)+len(cons_errs)} consistency/evidence issues (see validator)")
         for e in (ev_errs + cons_errs)[:10]:
             print(" -", e)
-        # Do not silently continue on hard errors — but file is still written for inspection
+        # Do not silently continue on hard errors -- but file is still written for inspection
         # Caller (clean_room_run) will run validate_output.py which will FAIL the gate.
 
     runtime = time.time() - started
