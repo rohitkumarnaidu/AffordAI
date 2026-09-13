@@ -43,6 +43,12 @@ SCHEMA_VERSION = "affordai-evidence-v1"
 
 SUPPORTED_CURRENCIES = frozenset({"EUR", "USD", "IDR", "INR", "ZAR"})
 
+# F-07: hard upper bound so a misconfigured LLM_MAX_RETRIES can never create
+# an unbounded attempt loop. Attempts are local-only (no network fan-out),
+# but CPU time must still be bounded. 10 retries (11 attempts) is far above
+# any legitimate transient-recovery need.
+MAX_RETRIES_CAP = 10
+
 MODEL_CALLS: tuple[dict, ...] = (
     {
         "call_id": "message_extract",        "provider": "config MODEL_PROVIDER (empty in E0)",
@@ -179,7 +185,7 @@ def load_config_from_env(env: dict | None = None) -> LlmConfig:
         model=str(src.get("MODEL_NAME", "")),
         vision_model=str(src.get("VISION_MODEL_NAME", "")),
         timeout_s=timeout,
-        max_retries=max(0, retries),
+        max_retries=min(MAX_RETRIES_CAP, max(0, retries)),
         min_confidence=min_conf,
         reason="ok",
     )

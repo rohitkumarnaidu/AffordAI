@@ -105,6 +105,75 @@ Rank safe eligible plans:
 - Conflict precedence: (1) explicit cancellation/settlement/amendment (2) newer record
   same source (3) settled over estimate/forecast (4) financially safer interpretation.
 
+### 6.1 Worked examples (implementation-grounded, concise)
+
+All values LOCAL MEASUREMENT from `dataset/official` + `output.csv` (2026-09-13) unless
+marked synthetic. Each traces `pipeline.py:decide_context` with real functions.
+
+**Ex1 — Normal affordable purchase (request_26 → affordable_now / full_payment).**
+Input: `request_26`, `user_26`, `2025-08-03`, requested `15656000 IDR`, deadline
+`2025-10-07`, `allows_partial=false`. Profile home `IDR`, opening covers request plus
+minimum, no overriding evidence. → Interpreted state: `build_contexts` indexes
+user_26 → `state.build` + `timeline.build_flows` daily net.
+→ Deterministic reasoning: `forecast.max_safe_today` == 15656000,
+`earliest_full_date` == 2025-08-03; `payment_plans.generate` full candidate
+`2025-08-03:15656000` passes `forecast.simulate` floor every day.
+→ Decision: `affordable_now / full_payment`, safe `15656000`, earliest
+`2025-08-03`, plan `2025-08-03:15656000`, changes `none`.
+→ Validation: `validate_consistency` affordable_now ⇒ full_payment && earliest
+== request_date PASS; `scripts/validate_output.py` PASS.
+
+**Ex2 — Wait due to safety/deadline (request_36 → affordable_later / wait).**
+Input: `request_36`, `user_36`, `2026-07-03`, requested `3954 USD`, deadline
+`2026-09-15`, considers `full_payment` only. Message `message_26` (2026-06-22)
+salary increase to `USD 2988` from `2026-07-15`.
+→ Interpreted state: `message_interpreter.interpret` + `message_income.confirmed_series`
+adds confirmed salary flow from 2026-07-15 to `timeline`.
+→ Deterministic reasoning: full unsafe today (`safe` 789.44 < 3954); forward scan
+`earliest_full_date` first safe single-payment day `2026-08-15`.
+→ Decision: `affordable_later / wait`, safe `789.44` (BEFORE changes, per §3),
+earliest `2026-08-15`, plan `2026-08-15:3954`.
+→ Validation: eligible (future-safe + accepts full), `simulate` ok on
+`2026-08-15`, completes ≤ deadline, consistency PASS.
+
+**Ex3 — Partial payment (synthetic, engine-proven — 0 production rows of this kind).**
+Proven by `tests/regression/test_sections_15_21.py:test_partial_exact_two_payment_shape`
++ `test_partial_gated_off` (all 5 gates exercised).
+Input (synthetic): requested `4000`, `safe` 1500 (`0 < safe < requested`),
+`earliest` `2026-02-10` ≤ deadline `2026-03-01`, request `allows_partial=true`,
+profile accepts `partial_payment`.
+→ Interpreted state: `FinancialState` with safe 1500, earliest 2026-02-10.
+→ Deterministic reasoning: `payment_plans.generate` checks all 5 gates
+(allows_partial, accepts, `0<safe<requested`, `earliest<=deadline`, exact 2-leg
+shape) → creates `request_date:1500 | earliest:2500` summing to `4000`;
+`simulate` with those payments holds floor.
+→ Decision: `affordable_with_plan / partial_payment` (partial ⇒ that status
+only), plan as above.
+→ Validation: `validate_plans` checks exactly 2 legs summing to requested with
+safe/earliest gates; `rules.derive` maps partial ⇒ affordable_with_plan.
+
+### 6.2 Evidence precedence (code-verified, evidence conflict_resolver)
+
+Rules never reordered by LLM. Evidence is resolved by `conflict_resolver.resolve`
+3-pass stable sort.
+
+```mermaid
+flowchart TD
+    A["typed facts with sent_at"] --> B{"explicit cancel or settle or amend?"}
+    B -->|"yes"| C["Rank1 explicit wins"]
+    B -->|"no"| D{"newer same-source sent_at?"}
+    D -->|"yes"| E["Rank2 newer wins"]
+    D -->|"no"| F{"settled over estimate?"}
+    F -->|"yes"| G["Rank3 settled wins"]
+    F -->|"no"| H["Rank4 safer interpretation"]
+    C --> I["method rank deterministic over llm"]
+    E --> I
+    G --> I
+    H --> I
+    I --> J["lexical source_id tiebreak"]
+    J --> K["authoritative cancelled_set amended_amounts"]
+```
+
 ## 7. Implementation assumptions (VERIFIED vs UNPROVEN) — Phase 4 audited 2026-09-13
 
 - VERIFIED from data (reproducible, see `evaluation/reports/data_inventory.md` + `dataset_regression_snapshot.json`): 16 blank `financial_events.amount` ↔ 16 `images.csv:related_event_id` ↔ 16 PNGs 1:1:1 (hashes `f94255ba…` etc.); 5 directed FX pairs `USD→INR/IDR/EUR, EUR→USD/ZAR` (134 rows, 39 dates `2023-10-15→2026-11-15` + `2025-10-01`); `sent_at` ISO `YYYY-MM-DDTHH:MM:SSZ`; preference lists `|`-split; 90-day window `[request_date, request_date+89]` inclusive (spec §4); money bare-integer or 2dp (IDR `15952906.67` observed); all PKs unique, 0 orphans eval-partition (see `evaluation/reports/join_integrity.md`).

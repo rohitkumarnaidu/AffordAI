@@ -50,6 +50,21 @@ class UsageReport:
     def total_tokens(self) -> int:
         return self.input_tokens + self.output_tokens
 
+    def backend_calls(self) -> int:
+        """Completed provider round-trips (F-06 terminology).
+
+        `calls` counts ModelCallRecord attempt-records (one per extraction
+        attempt, INCLUDING local no-backend estimations with
+        token_source=estimated). `backend_calls` counts only records with
+        success=True, i.e. an actual backend returned output. With no
+        provider SDK vendored, backend_calls is 0 and all tokens are local
+        estimates that never influence decisions.
+        """
+        try:
+            return sum(1 for r in (self.records or []) if getattr(r, "success", False))
+        except Exception:
+            return 0
+
     def merge(self, other: "UsageReport") -> "UsageReport":
         merged_per: dict = {}
         for src in (self.per_model, other.per_model):
@@ -121,7 +136,8 @@ class UsageReport:
             "",
             f"- Model provider: {safe_provider or '(deterministic E0, none)'}",
             f"- Model name(s): {safe_model or '(none)'}",
-            f"- Model calls: {self.calls}",
+            f"- Model calls: {self.calls} (attempt records incl. local no-backend estimates)",
+            f"- Backend LLM calls completed: {self.backend_calls()} (actual provider round-trips)",
             f"- Input tokens: {self.input_tokens}",
             f"- Output tokens: {self.output_tokens}",
             f"- Total tokens: {self.total_tokens}",

@@ -39,6 +39,24 @@ REJECT candidate if any day `closing < minimum`, or completion `> desired_comple
 1. completes by deadline 2. no spending changes 3. min total paid (incl. fees)
 4. earlier first-payment date 5. fewer payments 6. lowest `payment_option_id`.
 
+### Diagram 4 — Ranking 6-tuple optimizer rank_key (code-verified, finance optimizer)
+
+Eligible safe candidates are ranked by `optimizer.rank_key(candidate, deadline)` 6-tuple.
+
+```mermaid
+flowchart TD
+    A["eligible safe candidates"] --> B["Step1 complete by deadline?"]
+    B --> C["Step2 no spending changes?"]
+    C --> D["Step3 min total_paid incl fees"]
+    D --> E["Step4 earlier first payment date"]
+    E --> F["Step5 fewer payments"]
+    F --> G["Step6 lowest payment_option_id"]
+    G --> H["None sorts as tilde last"]
+    H --> I["rank_key tuple sorted"]
+    I --> J["select winner deterministic"]
+    J --> K["tie break lowest option_id"]
+```
+
 ## E. Spending changes
 
 Only flexible recurring events in willing categories; ≤3; no same-event stop+reduce;

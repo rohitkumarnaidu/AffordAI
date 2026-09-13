@@ -473,3 +473,80 @@ def test_cache_behavior_if_implemented():
     # LOCAL MEASUREMENT: E0 run performs no cacheable repeat work.
     run_dataset("dataset/official")
     assert len(_CACHE._store) == 0  # CACHE NOT ADOPTED (documented, measured)
+
+# ---------------------------------------------------------------------------
+# F-01 -- E0 verification gate (exact-zero, scrubbed environment; never weakened)
+# ---------------------------------------------------------------------------
+
+def test_e0_gate_exact_zero_backend_calls(monkeypatch):
+    """F-01 gate: under forced E0 there are EXACTLY zero backend calls,
+    zero LLM-derived facts, and valid output. This test MUST stay exact --
+    do not convert it to a mode-aware conditional (that variant already
+    exists as test_model_call_count)."""
+    monkeypatch.setenv("LLM_ENABLED", "0")
+    monkeypatch.delenv("API_KEY", raising=False)
+    store: dict = {}
+    result = run_dataset("dataset/official", request_traces=store)
+    usage = result["usage"]
+    assert usage.calls == 0
+    assert usage.backend_calls() == 0
+    assert usage.input_tokens == 0 and usage.output_tokens == 0
+    assert usage.total_tokens == 0
+    assert len(usage.records) == 0
+    assert len(result["decisions"]) == 250
+    for rt in store.values():
+        for f in rt.facts:
+            assert f.get("method") != "llm" and f.get("extraction_method") != "llm"
+    from affordai.output.validator import validate_consistency
+    assert validate_consistency(result["decisions"]) == []
+
+
+def test_e0_equals_metered_output(monkeypatch):
+    """Intended invariant: the no-backend metered path adds zero facts, so
+    E0 and metered serialized outputs are byte-identical. If this ever
+    legitimately diverges (real backend vendored), document why here."""
+    import hashlib
+    from affordai.pipeline import build_contexts, load_dataset
+    tables = load_dataset("dataset/official")
+    ctxs = build_contexts(tables)
+    home = {c.request_id: c.profile["home_currency"] for c in ctxs}
+    cols = ("request_id", "amount_safe_to_pay", "affordability_status",
+            "recommended_payment_method", "payment_plan",
+            "earliest_date_for_full_payment", "spending_changes_needed",
+            "decision_explanation")
+
+    def _rows_hash():
+        res = run_dataset("dataset/official")
+        blob = "\n".join(
+            "|".join(d.to_serialized_row(home[d.request_id])[c] for c in cols)
+            for d in res["decisions"]
+        )
+        return hashlib.sha256(blob.encode("utf-8")).hexdigest(), res["usage"].calls
+
+    monkeypatch.setenv("LLM_ENABLED", "0")
+    monkeypatch.delenv("API_KEY", raising=False)
+    h_e0, calls_e0 = _rows_hash()
+    assert calls_e0 == 0
+    monkeypatch.setenv("LLM_ENABLED", "1")
+    monkeypatch.setenv("API_KEY", "DUMMY-NOT-A-REAL-KEY")
+    monkeypatch.setenv("MODEL_PROVIDER", "p")
+    monkeypatch.setenv("MODEL_NAME", "m")
+    h_met, _ = _rows_hash()
+    assert h_e0 == h_met  # OBSERVED: no-backend metered path is decision-identical
+
+
+def test_retry_max_clamped():
+    """F-07: LLM_MAX_RETRIES cannot create an unbounded attempt loop."""
+    from affordai.evidence.llm_adapter import MAX_RETRIES_CAP, load_config_from_env
+    assert MAX_RETRIES_CAP == 10
+    cfg = load_config_from_env({"LLM_ENABLED": "1", "API_KEY": "x", "LLM_MAX_RETRIES": "999999"})
+    assert cfg.max_retries == MAX_RETRIES_CAP
+    calls = {"n": 0}
+
+    def backend():
+        calls["n"] += 1
+        raise TimeoutError("t")
+
+    raw, rec = call_with_retry(backend, cfg, purpose="message_extract")
+    assert calls["n"] == 1 + MAX_RETRIES_CAP  # OBSERVED hard bound
+    assert rec.fallback.startswith("retry-exhausted")

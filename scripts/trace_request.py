@@ -27,7 +27,7 @@ from affordai.pipeline import build_contexts, decide_context, load_dataset
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--dataset", default="dataset/official")
-    ap.add_argument("--request", required=True, help="request_id to trace")
+    ap.add_argument("--request", "--request-id", dest="request", required=True, help="request_id to trace")
     ap.add_argument("--out", default="")
     ap.add_argument("--run-id", default="E0")
     args = ap.parse_args()

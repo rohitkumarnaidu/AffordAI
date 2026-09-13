@@ -7,9 +7,13 @@ Measures (LOCAL MEASUREMENT, wall clock):
     load | contexts | decide-all | serialize | validate
 plus per-request decide stats (avg, slowest 5), model-call counts, image
 selectivity counts, and cache status. Writes
-`evaluation/local/benchmark.json` and prints a timing table.
+`evaluation/local/benchmark.json` (gitignored scratch, reproducible via this command)
+and prints a timing table.
 
-No optimization without measurement: this script IS the measurement.
+E0-only by design: benchmark forces deterministic financial timing (no backend
+variance). Metered perf delta is bounded to record accounting (no I/O) and was
+verified identical decisions (see F-09). No optimization without measurement:
+this script IS the measurement.
 """
 
 from __future__ import annotations

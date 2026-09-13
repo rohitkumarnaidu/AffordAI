@@ -38,7 +38,7 @@ adds 0 facts — decisions stay byte-identical (metered FINAL run 2026-09-13:
 - **Output schema:** same but `kind` MUST be `amount` with finite positive `normalized_value`
 - **Validation:** `_validate_proposal` + `kind==amount` gate + `parse_amount()>0` + `min_confidence` + registry ownership; non-amount kinds from image path are dropped (zero-trust)
 - **Retry:** same bounded budget
-- **Fallback:** UNKNOWN amount marker (`amount_unknown_evidence`, confidence 0, blank is never zero); plan must stay safe without it
+- **Fallback:** UNKNOWN amount marker (`amount_unknown_evidence`, confidence 0, blank is never zero) — this IS the `missing_evidence` handling (semantic name for the same UNKNOWN, not a second code path); plan must stay safe without it
 - **Token measurement:** same `ModelCallRecord` accounting
 
 ## Why no LLM on deterministic work

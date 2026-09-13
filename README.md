@@ -114,7 +114,7 @@ python scripts/evaluate.py        # local proxy on sample rows (NOT official sco
 python scripts/run_ablation.py    # E0–E7 reproduction → evaluation/reports/ablation_results.*
 python scripts/eval_report.py --tag final
 python scripts/clean_room_run.py  # fresh-subprocess reproducibility gate
-python scripts/trace_request.py --request-id request_30 --dataset dataset/official
+python scripts/trace_request.py --request request_30 --dataset dataset/official  # alias: --request-id also works
 python scripts/benchmark.py       # stage timings (full run ~2.4s, ~8ms/req)
 python -m pytest tests -q         # 354 tests (unit/integration/edge/adversarial/regression/e2e/contract/security)
 ```
