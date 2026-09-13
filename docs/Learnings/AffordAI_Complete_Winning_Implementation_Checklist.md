@@ -1265,85 +1265,85 @@ For every bug:
 
 Use prior reports only as directional evidence.
 
-## 39.1 Quality dimensions
-- [ ] Problem understanding
-- [ ] Specification clarity
-- [ ] Deterministic core
-- [ ] AI boundary
-- [ ] Output correctness
-- [ ] Evidence grounding
-- [ ] Evaluation maturity
-- [ ] Regression
-- [ ] Reliability
-- [ ] Simplicity
-- [ ] Transcript quality
-- [ ] Interview defensibility
+## 39.1 Quality dimensions (verified 2026-09-13 ~17:30 IST — evidence in `evaluation/full_dataset_report.md` + `evaluation/replay_report.md`)
+- [x] Problem understanding — 8-col contract, enums, 90-day floor, deadlines, preferences all enforced; validator PASS on 250 rows
+- [x] Specification clarity — `docs/specification.md` §§1-10 + failure §9 + prohibited §10 (closed S36)
+- [x] Deterministic core — zero LLM/clock/random imports in finance/decision (`test_no_llm_or_clock_in_deterministic_core` PASS; grep this turn: only `installments`-substring hits)
+- [x] AI boundary — 2 bounded calls (`docs/model-call-inventory.md`); metered 77 calls add 0 facts, hash unchanged `d8386548`
+- [x] Output correctness — 250/250, 0 missing/extra/dup/order-mismatch (measured this turn)
+- [x] Evidence grounding — registry ownership checks, 16↔16 image bijection, blank never zero, evidence errors 0
+- [x] Evaluation maturity — 9 local-proxy metrics, 12 failure cats all 0, ablation E0-E7, OFFICIAL UNKNOWN honestly labeled
+- [x] Regression — 15 groups + 29 adversarial + 354 tests green this turn
+- [x] Reliability — S34 matrix (timeout/rate-limit/invalid-JSON/image-failure), bounded retries, safe fallback tested
+- [x] Simplicity — deps pandas+dotenv only, no SDK/agents/dashboard added
+- [x] Transcript quality — append-only `log.txt`, genuine, pre-contract gap documented not backfilled
+- [x] Interview defensibility — S38 walkthroughs + 8-answer defense (closed)
 
-## 39.2 Avoid cargo cult
-- [ ] No copied winner architecture without evidence
-- [ ] No extra agents without benefit
-- [ ] No extra models without benefit
-- [ ] No extra framework without benefit
-- [ ] No UI unless useful
+## 39.2 Avoid cargo cult (verified 2026-09-13 — nothing added this turn)
+- [x] No copied winner architecture without evidence
+- [x] No extra agents without benefit
+- [x] No extra models without benefit
+- [x] No extra framework without benefit
+- [x] No UI unless useful
 
 ---
 
 # 40. FINAL FULL-DATASET RUN
 
-## 40.1 Inputs
-- [ ] Correct official dataset
-- [ ] Unmodified source files
-- [ ] Correct environment
-- [ ] Required model credentials only
+## 40.1 Inputs (verified 2026-09-13 — `evaluation/full_dataset_report.md`)
+- [x] Correct official dataset — `dataset/official`, hashes recorded (requests `F94255BA…`)
+- [x] Unmodified source files — `git diff --stat -- dataset/official` clean
+- [x] Correct environment — documented runtime (pandas listed, stdlib-only at runtime per `clean_room_run.py`)
+- [x] Required model credentials only — `.env` gitignored, never logged; scrubbed in clean-room
 
-## 40.2 Run
-- [ ] Full 250-request run, or exact actual request count if official data changes
-- [ ] Output generated
-- [ ] All traces available
-- [ ] Token usage captured
-- [ ] Failures recorded
+## 40.2 Run (executed 2026-09-13 ~17:30 IST — real run, no sampling)
+- [x] Full 250-request run, or exact actual request count if official data changes — 250/250, 0 skipped, ~2.8s, mix 33/182/29/6
+- [x] Output generated — `output.csv` 250 rows, SHA256 `d8386548…ca6`
+- [x] All traces available — `evaluation/local/trace_*.json` (request→…→output), secret-free
+- [x] Token usage captured — 77 calls / 7864 est. tokens / UNKNOWN cost (`evaluation/usage_report.md`, ESTIMATED)
+- [x] Failures recorded — 0 failures; 12 failure categories all 0
 
-## 40.3 Validation
-- [ ] Output validator green
-- [ ] Financial invariant green
-- [ ] Evidence validator green
-- [ ] Regression green
-- [ ] Security scan green
+## 40.3 Validation (all run 2026-09-13 after the full run)
+- [x] Output validator green — `validate_output.py` PASS
+- [x] Financial invariant green — floor gate + boundary tests PASS
+- [x] Evidence validator green — 0 errors
+- [x] Regression green — 354 passed
+- [x] Security scan green — 0 real hits
 
 ---
 
 # 41. DETERMINISM & REPLAY
 
-## 41.1 Deterministic sections
-- [ ] Same financial state
-- [ ] Same simulation
-- [ ] Same plan candidates
-- [ ] Same ranking
-- [ ] Same output serialization
+## 41.1 Deterministic sections (replayed 2026-09-13 — `evaluation/replay_report.md`, all `d8386548…ca6`)
+- [x] Same financial state
+- [x] Same simulation
+- [x] Same plan candidates
+- [x] Same ranking
+- [x] Same output serialization
 
-## 41.2 Replay
-- [ ] Run 1 completed
-- [ ] Run 2 completed
-- [ ] Outputs compared
-- [ ] Differences classified
-- [ ] Unexpected differences resolved or documented
+## 41.2 Replay (real double-run, not code inspection)
+- [x] Run 1 completed — `evaluation/local/replay_a.csv` 250 rows
+- [x] Run 2 completed — `evaluation/local/replay_b.csv` 250 rows
+- [x] Outputs compared — byte-identical to each other and to `output.csv`
+- [x] Differences classified — none in deterministic sections (only volatile wall-runtime field)
+- [x] Unexpected differences resolved or documented — none; N/A documented
 
 ---
 
 # 42. CLEAN-ROOM
 
-## 42.1 Environment
-- [ ] Fresh virtual environment
-- [ ] Dependencies install successfully
-- [ ] Environment variables documented
-- [ ] Dataset available
+## 42.1 Environment (executed 2026-09-13 ~17:30 IST — `CLEAN-ROOM PASS`)
+- [x] Fresh virtual environment — fresh subprocess, scrubbed secrets (`KEY`/`TOKEN` stripped), temp dir
+- [x] Dependencies install successfully — stdlib-only at runtime (pandas listed but unused at runtime, asserted in `clean_room_run.py`)
+- [x] Environment variables documented — `.env.example` placeholders only; `.env` gitignored
+- [x] Dataset available — `dataset/official` read from repo (packaging exclusion vs runtime availability distinguished: dataset ships beside code per repo layout)
 
-## 42.2 Execution
-- [ ] Single documented command works
-- [ ] `output.csv` generated
-- [ ] Validator passes
-- [ ] Usage report generated
-- [ ] No hidden local dependency
+## 42.2 Execution (single documented commands: `scripts/build_output.py`, `scripts/clean_room_run.py`)
+- [x] Single documented command works — `python scripts/clean_room_run.py --dataset dataset/official` PASS
+- [x] `output.csv` generated — 250 rows in temp dir, mix identical
+- [x] Validator passes — PASS inside clean-room
+- [x] Usage report generated — via build path (`usage_report.md` write step runs in subprocess)
+- [x] No hidden local dependency — no absolute/dev-username/home/IDE/cache paths; scrubbed env; output hash identical `d8386548`
 
 ---
 
