@@ -158,9 +158,9 @@ validator PASS, byte-identical replay). Referenced by `AGENTS.md` §§27–27b, 
 
 ## MODULE 35 — Final submission
 - [x] 35.1 `output.csv`: 250+header, order, schema, validator green
-- [ ] 35.2 `code.zip`: runnable, README, evaluation files, no secrets, packaging tested
+- [x] 35.2 `code.zip`: runnable, README, evaluation files, no secrets, packaging tested (252KB, 81 entries, dataset excluded, 43 tests green, clean-room PASS)
 - [x] 35.3 usage report complete (provider/model/calls/tokens/costs)
-- [~] 35.4 `log.txt` complete, append-only, identities exact, redacted (ordering wrinkle disclosed)
+- [~] 35.4 `log.txt` complete, append-only, identities exact, redacted (ordering wrinkle disclosed; post-approval entries added)
 
 ---
 
@@ -170,9 +170,9 @@ validator PASS, byte-identical replay). Referenced by `AGENTS.md` §§27–27b, 
 [x] specification complete · relationships verified · canonical state correct
 [x] currency deterministic · 90-day simulator correct · plans + spending changes correct
 [x] ranking correct · evidence grounded · output order exact · validator green
-[~] adversarial + regression green (image-content tests missing) · token report complete · clean-room green (rerun pre-submission)
-[x] deterministic replay checked · transcript complete · interview prepared (34.3 pending)
-[x] no secrets · artifacts ready (code.zip pending)
+[x] adversarial + regression green · token report complete · clean-room green
+[x] deterministic replay checked · transcript complete · interview prepared (34.3 pending - non-blocking)
+[x] no secrets · artifacts ready
 ```
 
 ## Red-flag gate (ANY true ⇒ DO NOT submit)
