@@ -21,7 +21,35 @@ Thumbs.db
 *.log
 log.txt
 tmp/
+temp/
+outputs/
 outputs/local/
 dataset/local/
 dataset/generated/
 evaluation/local/
+
+# gstack / browser daemon (local tooling)
+.gstack/
+.gstack-browse/
+
+# coverage / test caches
+.coverage
+coverage.xml
+htmlcov/
+.hypothesis/
+.tox/
+.nox/
+.cache/
+
+# build artifacts
+build/
+dist/
+
+# editors / OS extras
+.idea/
+.vscode/
+*.swp
+*~
+*.bak
+*.tmp
+.python-version
