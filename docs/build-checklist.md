@@ -63,44 +63,44 @@ Referenced by `AGENTS.md` §§27–27b, 30. Update as work lands.
   confirmed salary on settlement date only — Evidence: `timeline.build_flows` inclusion rules + `state.build` duplicate/out-of-window gate, `tests/edge_cases + integration` (12 tests) PASS; full output.csv byte-identical before/after refactor, double-run identical, clean-room PASS 2026-09-13
 
 ## MODULE 12 — 90-day forecast (`finance/forecast.py`)
-- [ ] 12.1 daily ledger: opening, inflows, essentials, recurring, existing + candidate payments, closing
-- [ ] 12.2 invariant `closing >= minimum` every day; no double-counting; deterministic
+- [x] 12.1 daily ledger: opening, inflows, essentials, recurring, existing + candidate payments, closing — Evidence: `forecast.py:simulate` daily loop, `timeline.build_flows` inclusion rules, 4-agent audit 2026-09-13, `tests/regression/test_sections_15_21.py` (dynamic states)
+- [x] 12.2 invariant `closing >= minimum` every day; no double-counting; deterministic — Evidence: `forecast.py` early-return on breach, `state.py` double-count guard, `test_simulate_floor_boundary`, `test_forecast_floor_invariant_across_window`, full output.csv byte-identical after change (hash `2afdb4aa…`), double-run identical
 
 ## MODULE 13 — Payment-plan engine (`finance/payment_plans.py`)
-- [ ] 13.1 candidates: full / partial / installments / wait / spending-change variants / not_recommended
-- [ ] 13.2 each: safety → deadline → preference → ranking
+- [x] 13.1 candidates: full / partial / installments / wait / spending-change variants / not_recommended — Evidence: `payment_plans.generate` + `spending_changes.find_variants` + pipeline `None→not_recommended`; `test_partial_exact_two_payment_shape`, `test_installments_exact_option_match`, `test_wait_shape_conditions`
+- [x] 13.2 each: safety → deadline → preference → ranking — Evidence: `pipeline.py decide_context` order generate→variants→filter→simulate→select; `test_eligibility_keeps_unsafe_but_preferred` proves safety-after-preference split
 
 ## MODULE 14 — Amount safe to pay
-- [ ] 14.1 max safe today, before optional changes, bounded, deterministic search
-- [ ] 14.2 boundaries: 0, full, exact edge, ±edge
+- [x] 14.1 max safe today, before optional changes, bounded, deterministic search — Evidence: `forecast.max_safe_today` (monotonicity lemma in docstring, ROUND_FLOOR hi, clamp `0<=safe<=requested`, fail-closed post-conditions); computed before `find_variants` in pipeline
+- [x] 14.2 boundaries: 0, full, exact edge, ±edge — Evidence: `test_safe_plus_unit_rejected_and_bounded`, `test_safe_monotone_all_below_safe`, `test_safe_non_2dp_requested_never_exceeds`, `test_earliest_never_safe_is_none` (safe==0)
 
 ## MODULE 15 — Earliest full-payment date
-- [ ] 15.1 scan from `request_date`; first safe single-payment date; empty if never; preference-independent
-- [ ] 15.2 safety + deadline validation
+- [x] 15.1 scan from `request_date`; first safe single-payment date; empty if never; preference-independent — Evidence: `forecast.earliest_full_date` linear scan, single-`state` signature (`test_earliest_independent_of_preferences`), `None→""` mapping
+- [x] 15.2 safety + deadline validation — Evidence: `test_earliest_minimal_every_earlier_day_unsafe` (loop-proves minimality), deadline enforced downstream (`test_partial_gated_off` earliest>deadline case)
 
 ## MODULE 16 — Partial payment
-- [ ] 16.1 eligible: allows-partial, user accepts, `0 < safe < requested`, `earliest <= deadline`
-- [ ] 16.2 exactly 2 payments (`safe` + remainder = requested), safe, on time
+- [x] 16.1 eligible: allows-partial, user accepts, `0 < safe < requested`, `earliest <= deadline` — Evidence: `payment_plans.generate` 4/5 gates + `eligibility` acceptance gate; `test_partial_gated_off` (3 gate cases)
+- [x] 16.2 exactly 2 payments (`safe` + remainder = requested), safe, on time — Evidence: `test_partial_exact_two_payment_shape` (legs, sum, simulate ok)
 
 ## MODULE 17 — Installments
-- [ ] 17.1 exact match: option id, count, dates, amounts, fees
-- [ ] 17.2 user accepts installments, month-limit ok, safe, on time
+- [x] 17.1 exact match: option id, count, dates, amounts, fees — Evidence: `expand_schedule` + `Candidate(option_id, total_paid)`; `test_installments_exact_option_match`; malformed skip+note `test_installments_malformed_skipped_with_note`
+- [x] 17.2 user accepts installments, month-limit ok, safe, on time — Evidence: `eligibility` term gate (`test_eligibility_preferences_and_term` pre-existing), validator exact-match re-derivation
 
 ## MODULE 18 — Spending changes (`finance/spending_changes.py`)
 - [x] 18.1 flexible-only, protected kept, ≤3, syntax valid, stop/reduce exclusive — Evidence: `spending_changes.py:32-60 candidate_targets()` protected guard, STOP_OK/REDUCE_OK, `tests/regression/test_p0_hardening.py:84-98` PASS
 - [x] 18.2 change flips plan safe, deadline holds, no gratuitous changes — Evidence: `spending_changes.py:72-106 find_variants()` simulate+deadline gate, `validator.py:207-234` ≤3 syntax check
 
 ## MODULE 19 — Method eligibility (`decision/eligibility.py`)
-- [ ] 19.1 filter by accepted/excluded methods, installment + partial preferences
-- [ ] 19.2 selected plan is safe + eligible + correctly ranked
+- [x] 19.1 filter by accepted/excluded methods, installment + partial preferences — Evidence: `eligibility.filter_candidates` + docstring contract; `test_wait_needs_full_acceptance`, `test_eligibility_drops_safe_but_excluded_and_late_and_partial_gate`
+- [x] 19.2 selected plan is safe + eligible + correctly ranked — Evidence: pipeline filter→simulate→select order; `test_eligibility_keeps_unsafe_but_preferred` (separation proof)
 
 ## MODULE 20 — Ranker (`finance/optimizer.py`)
-- [ ] 20.1 deadline → no-changes → min total → earlier start → fewer payments → lowest option id
-- [ ] 20.2 tie tests incl. final option-id break
+- [x] 20.1 deadline → no-changes → min total → earlier start → fewer payments → lowest option id — Evidence: `optimizer.rank_key` 6-tuple + docstring (`None→"~~~"` sorts last); pre-existing rules 1–3 tests + new `test_optimizer_earlier_start_fewer_payments_option_id`
+- [x] 20.2 tie tests incl. final option-id break — Evidence: same test (start/count/option-id/None-last); deterministic double-run `test_chain_deterministic_double_run`
 
 ## MODULE 21 — Decision (`decision/decision.py`)
-- [ ] 21.1 canonical `Decision` carries all 8 fields + evidence + explanation facts
-- [ ] 21.2 status↔method↔plan↔dates↔changes↔explanation consistent
+- [x] 21.1 canonical `Decision` carries all 8 fields + evidence + explanation facts — Evidence: `decision.py OUTPUT_COLUMNS` order, `Decimal` amount type (fixed 2026-09-13), pipeline populates all in `decide_context`
+- [x] 21.2 status↔method↔plan↔dates↔changes↔explanation consistent — Evidence: `rules.derive` mapping + `test_rules_derive_full_mapping`, `invariants.py` + validator consistency layers, `validate_output.py PASS`
 
 ## MODULE 22 — Output (`output/serializer.py`, `validator.py`, `scripts/validate_output.py`)
 - [ ] 22.1 exact columns/order/count/request order

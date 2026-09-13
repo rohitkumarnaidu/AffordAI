@@ -8,6 +8,15 @@ from __future__ import annotations
 
 
 def rank_key(candidate, deadline):
+    """Six-level official ordering (first match wins).
+
+    Non-installment candidates carry ``option_id=None``, which sorts as
+    ``"~~~"`` (after any real option id) — deterministic and documented.
+    A residual full tie (identical 6-tuple) falls through to the input
+    list order; inputs are deterministically built (``payment_plans``
+    generation order + sorted targets + ``combinations`` order), so
+    ``min`` stays reproducible run to run.
+    """
     return (
         1 if candidate.last_date > deadline else 0,
         1 if candidate.changes else 0,

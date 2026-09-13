@@ -44,11 +44,35 @@ class Flow:
     category: str
     flexibility: str
     essential: bool
+    # Traceability (Section 12.4): per-flow FX provenance (re-derivable but recorded)
+    source_amount: Decimal | None = None
+    source_currency: str | None = None
+    rate: Decimal | None = None
+    rate_date: date | None = None
+    rate_id: str | None = None
 
 
 def _same_month_day(year: int, month: int, dom: int) -> date:
     """Compat alias: month-aware day construction (see temporal.clamp_month_day)."""
     return clamp_month_day(year, month, dom)
+
+
+def _history_view(
+    history: list[dict],
+    amend_amounts: dict[str, Decimal],
+    amend_dates: dict[str, date],
+) -> list[dict]:
+    """Return history with evidence-amended amount/date applied (no mutation)."""
+    out: list[dict] = []
+    for e in history:
+        eid = e["event_id"]
+        copy = dict(e)
+        if eid in amend_amounts:
+            copy["amount"] = amend_amounts[eid]
+        if eid in amend_dates:
+            copy["settlement_date"] = amend_dates[eid]
+        out.append(copy)
+    return out
 
 
 def _infer_recurrence(
@@ -93,7 +117,11 @@ def _infer_recurrence(
         for r in recent:
             if r["amount"] is None:
                 continue
-            conv = rate_table.to_home(r["amount"], cur, home, r["settlement_date"])
+            # Use rate_table.convert_to_home for traceability where possible
+            try:
+                conv, _ = rate_table.convert_to_home(r["amount"], cur, home, r["settlement_date"])
+            except Exception:
+                conv = rate_table.to_home(r["amount"], cur, home, r["settlement_date"])
             if conv is None:
                 continue
             amounts.append(conv)
@@ -206,7 +234,42 @@ def _infer_recurrence(
             day = day + timedelta(days=int(med_gap))
             if len([f for f in out if f.source_event_id == rep]) > 6:
                 break
-    return out
+    # dedupe inferred on (source, day): category-level wins, desc-level duplicates dropped
+    _seen: set[tuple[str, date]] = set()
+    _deduped: list[Flow] = []
+    for _f in out:
+        _key = (_f.source_event_id or "", _f.day)
+        if _key in _seen:
+            continue
+        _seen.add(_key)
+        _deduped.append(_f)
+    return _deduped
+
+
+def _estimate_unknown_amount(
+    ctx, category: str, currency: str, home: str, rate_table
+) -> Decimal | None:
+    """Conservative estimate for unknown-amount debits: median of same-category history."""
+    hist = [
+        h for h in ctx.events
+        if h["status"] == "settled" and h["amount"] is not None
+        and h["category"] == category and h["currency"] == currency
+    ]
+    if not hist:
+        return None
+    hist.sort(key=lambda r: r["settlement_date"])
+    recent = hist[-3:]
+    vals: list[Decimal] = []
+    for r in recent:
+        try:
+            conv, _ = rate_table.convert_to_home(r["amount"], currency, home, r["settlement_date"])
+        except Exception:
+            conv = rate_table.to_home(r["amount"], currency, home, r["settlement_date"])
+        if conv is not None:
+            vals.append(conv)
+    if not vals:
+        return None
+    return quantize_money(Decimal(str(median(vals))), home)
 
 
 def build_flows(
@@ -229,7 +292,7 @@ def build_flows(
     flows: list[Flow] = []
     unknowns: list[dict] = []
     notes: list[str] = []
-    history: list[dict] = []
+    raw_history: list[dict] = []
 
     for e in ctx.events:
         eid = e["event_id"]
@@ -242,15 +305,41 @@ def build_flows(
         if amount is None:
             if day >= req_date and e["status"] in ("pending", "scheduled", "settled"):
                 unknowns.append({"event_id": eid, "status": e["status"]})
+                # ---- unknown-amount reserve (conservative, auditable) ----
+                if e["direction"] == "debit" and e["status"] in ("pending", "scheduled"):
+                    # only debits in-window need reserve; settled unknowns are history-only
+                    if req_date <= day <= end:
+                        est = _estimate_unknown_amount(ctx, e["category"], e["currency"], home, rate_table)
+                        if est is not None and est > 0:
+                            reserve_day = req_date if e["status"] == "pending" else day
+                            flows.append(
+                                Flow(
+                                    day=reserve_day,
+                                    amount_home=-est,
+                                    kind="pending_debit" if e["status"] == "pending" else "scheduled",
+                                    event_id=eid,
+                                    source_event_id=eid,
+                                    category=e["category"],
+                                    flexibility=e["flexibility"],
+                                    essential=e["category"] in protect,
+                                )
+                            )
+                            notes.append(f"unknown-reserved: {eid} at {est} {home} (median {e['category']})")
+                        else:
+                            notes.append(f"unknown-unreserved: {eid} no history for {e['category']}/{e['currency']}")
             if e["status"] == "settled" and e["settlement_date"] < req_date:
                 pass
             continue
         if e["status"] == "settled" and e["settlement_date"] < req_date:
-            history.append(e)
+            raw_history.append(e)
             continue
         if e["status"] == "settled":
             kind = "settled"
         elif e["status"] == "scheduled":
+            # Bonus/refund/lottery guard: scheduled credits only if salary/income
+            if e["direction"] == "credit" and not (e["category"] == "salary" or e["event_type"] == "income"):
+                notes.append(f"scheduled-credit-skipped: {eid} category {e['category']!r} (only salary counted)")
+                continue
             kind = "scheduled"
         elif e["status"] == "pending":
             if e["direction"] == "credit":
@@ -261,13 +350,20 @@ def build_flows(
             continue
         if not (req_date <= day <= end):
             continue
-        conv = rate_table.to_home(amount, e["currency"], home, day)
+        # Traceable conversion (captures rate metadata per flow)
+        trace = None
+        try:
+            conv, trace = rate_table.convert_to_home(amount, e["currency"], home, day)
+        except Exception:
+            conv = rate_table.to_home(amount, e["currency"], home, day)
+            trace = None
         if conv is None:
             if e["direction"] == "credit":
                 notes.append(f"fx-missing: excluded foreign credit {eid}")
                 continue
             notes.append(f"fx-missing: kept foreign debit {eid} at face")
             conv = amount
+            trace = None
         signed = quantize_money(conv, home)
         if e["direction"] == "debit":
             signed = -signed
@@ -281,9 +377,16 @@ def build_flows(
                 category=e["category"],
                 flexibility=e["flexibility"],
                 essential=e["category"] in protect,
+                source_amount=amount,
+                source_currency=e["currency"],
+                rate=getattr(trace, "rate", None) if trace else (None if e["currency"] == home else None),
+                rate_date=getattr(trace, "rate_date", None) if trace else None,
+                rate_id=getattr(trace, "rate_id", None) if trace else (f"{home}->{home}@same" if e["currency"] == home else None),
             )
         )
 
+    # History with amended values for recurrence (amend-aware)
+    history = _history_view(raw_history, amend_amounts, amend_dates)
     inferred = _infer_recurrence(history, home, rate_table, req_date, end, protect)
     # Dedupe inferred against scheduled/settled flows (same category, ~amount, +-3d).
     hard = [(f.day, f.category, abs(f.amount_home)) for f in flows if f.kind != "pending_debit"]
@@ -322,5 +425,29 @@ def build_flows(
         )
         if not clash:
             flows.append(f)
+    # --- linked lifecycle dedupe: if both ends of a linked chain are in-window, keep only the later ---
+    _by_event = {e["event_id"]: e for e in ctx.events}
+    _flow_ids = {f.event_id for f in flows if f.event_id}
+    _drop: set[str] = set()
+    for f in list(flows):
+        if not f.event_id:
+            continue
+        src = _by_event.get(f.event_id)
+        if not src:
+            continue
+        lid = src.get("linked_event_id")
+        if not lid or lid not in _flow_ids or lid in _drop or f.event_id in _drop:
+            continue
+        other = next((x for x in flows if x.event_id == lid), None)
+        if other is None:
+            continue
+        # deterministic: keep later day, tie -> lexicographically later event_id
+        if (f.day, f.event_id) < (other.day, other.event_id):
+            _drop.add(f.event_id)
+        else:
+            _drop.add(lid)
+    if _drop:
+        flows = [f for f in flows if f.event_id not in _drop]
+        notes.append(f"linked-dedupe: dropped {sorted(_drop)} (linked lifecycle, kept later)")
     flows.sort(key=flow_sort_key)
     return flows, unknowns, notes

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from decimal import Decimal
 
 
 @dataclass
@@ -9,7 +10,7 @@ class Decision:
     original_index: int
     request_id: str
     user_id: str
-    amount_safe_to_pay: float
+    amount_safe_to_pay: Decimal
     affordability_status: str
     recommended_payment_method: str
     payment_plan: str

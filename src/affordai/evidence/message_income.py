@@ -129,7 +129,9 @@ def confirmed_series(ctx, message: dict, home: str):
 
     dates = _DATE_RE.findall(text)
     req_date = ctx.request["request_date"]
-    end = req_date + timedelta(days=89)
+    from affordai.finance.temporal import forecast_end as _forecast_end
+
+    end = _forecast_end(req_date)
     ongoing = bool(ONGOING_RE.search(text)) and not (
         bool(ONEOFF_RE.search(text)) and not bool(re.search(r"rais|resume|temporary|monthly|bulanan", text, re.I))
     )
@@ -150,24 +152,26 @@ def confirmed_series(ctx, message: dict, home: str):
 
     series = []
     day = _next_payday(req_date, dom, anchor if dates and ("berlaku" in text or "mulai" in text or "effective" in text.lower() or "resumes" in text.lower()) else None)
-    import calendar as _cal
+    from affordai.finance.temporal import clamp_month_day as _clamp
 
     while day is not None and day <= end:
         series.append((day, amount))
         mth = day.month + 1
-        day = date(day.year + (mth - 1) // 12, (mth - 1) % 12 + 1, min(dom, _cal.monthrange(day.year + (mth - 1) // 12, (mth - 1) % 12 + 1)[1]))
+        y = day.year + (mth - 1) // 12
+        m = (mth - 1) % 12 + 1
+        day = _clamp(y, m, dom)
         if len(series) > 4:
             break
     return series, notes
 
 
 def _next_payday(req_date: date, dom: int, earliest: date | None) -> date | None:
-    import calendar as _cal
+    from affordai.finance.temporal import clamp_month_day as _clamp
 
     for step in range(5):
         m = req_date.month - 1 + step
         y = req_date.year + m // 12
-        day = date(y, m % 12 + 1, min(dom, _cal.monthrange(y, m % 12 + 1)[1]))
+        day = _clamp(y, m % 12 + 1, dom)
         if day >= req_date and (earliest is None or day >= earliest):
             return day
     return None

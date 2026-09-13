@@ -20,6 +20,11 @@ from affordai.finance.state import (
     validate_reduction,
 )
 MAX_CHANGES = 3
+# Bounded search (deterministic but lossy by design): only the top-8
+# targets by saving are combined, at most 3 variants per unsafe base.
+# Ordering is fully deterministic (targets sorted by (-saving, id, mode),
+# ``combinations`` in index order), so reruns are identical; a missed
+# minimal combo degrades to a safe fallback decision, never an unsafe one.
 _SHORTLIST = 8
 _VARIANTS_PER_BASE = 3
 

@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, timedelta
-from decimal import Decimal
+from decimal import Decimal, ROUND_FLOOR
 
 from affordai.finance.money import quantize_money
 from affordai.finance.temporal import WINDOW_DAYS
@@ -49,6 +49,15 @@ def simulate(
     payments: list[tuple[date, Decimal]],
     changes: dict[str, Decimal | None] | None = None,
 ) -> SimResult:
+    """Simulate one candidate over the 90-day window.
+
+    Caller contract: ``simulate`` decides balance-floor safety ONLY
+    (``closing >= minimum`` every projected day). Deadline preference
+    (``last payment <= desired_completion_date``) is enforced by the
+    caller chain — ``decision/eligibility.filter_candidates`` drops
+    late candidates before ranking (``optimizer`` re-applies it as
+    rank rule 1). Do not treat ``simulate().ok`` as deadline approval.
+    """
     changes = changes or {}
     flows_by_source: dict[str, list] = {}
     for f in state.flows:
@@ -73,9 +82,30 @@ def simulate(
 
 
 def max_safe_today(state) -> Decimal:
-    """Max single payment safe on request_date (no changes), via minor-unit binary search."""
+    """Max single payment safe on request_date (no changes), via minor-unit binary search.
+
+    Monotonicity lemma (why binary search is exact here): ``simulate``
+    computes ``closing(day) = opening + net(day) - paid(day)`` with a
+    single non-negative payment on ``request_date``. Raising the payment
+    lowers every projected closing pointwise, so the safety predicate
+    ``all(closing >= minimum)`` is monotone decreasing in the amount:
+    if ``X`` is safe then every ``0 <= Y <= X`` is safe, and if ``X``
+    is unsafe then every ``Z >= X`` is unsafe. Binary search over
+    integer minor units therefore returns the exact maximum.
+
+    Bounds: ``0 <= result <= requested`` (hi is floored so a non-2dp
+    ``requested`` can never round the search ceiling above it; the
+    return is clamped for the same invariant).
+
+    Base-breach rule: if existing obligations already break the floor
+    with NO new payment, nothing is payable — return ``0`` (the search
+    loop would converge there anyway; the early return just skips the
+    post-conditions, which assume a safe base).
+    """
     unit = Decimal("0.01")
-    hi = int((state.requested / unit).to_integral_value())
+    if not simulate(state, []).ok:
+        return Decimal("0.00")
+    hi = int((state.requested / unit).to_integral_value(rounding=ROUND_FLOOR))
     lo = 0
     while lo < hi:
         mid = (lo + hi + 1) // 2
@@ -83,11 +113,31 @@ def max_safe_today(state) -> Decimal:
             lo = mid
         else:
             hi = mid - 1
-    return quantize_money(Decimal(lo) * unit, state.home)
+    result = quantize_money(Decimal(lo) * unit, state.home)
+    if result < 0:
+        result = Decimal("0.00")
+    if result > state.requested:
+        result = quantize_money(state.requested, state.home)
+    # Post-conditions (fail-closed: any violation raises -> pipeline
+    # degrades to the safest fallback, never a silently wrong amount).
+    assert simulate(state, [(state.request_date, result)]).ok
+    if result + unit <= state.requested:
+        assert not simulate(state, [(state.request_date, result + unit)]).ok
+    return result
 
 
 def earliest_full_date(state) -> date | None:
-    """First date the full amount is safe as ONE payment (no changes)."""
+    """First date the full amount is safe as ONE payment (no changes).
+
+    Linear scan from ``request_date`` over the 90-day window; the first
+    simulated-safe day is minimal by construction (every earlier allowed
+    date was simulated unsafe). Independent of method preferences by
+    design: takes only ``state`` (no profile/accepted-methods), so the
+    caller chain derives capacity here and applies preferences later.
+    Returns ``None`` (serialized as ``""``) when never safe in-window.
+    Deadline is deliberately ignored here (Tier-1 capacity semantics);
+    ``payment_plans``/``eligibility`` enforce it downstream.
+    """
     for offset in range(WINDOW_DAYS):
         day = state.request_date + timedelta(days=offset)
         if simulate(state, [(day, state.requested)]).ok:

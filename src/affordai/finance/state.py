@@ -84,6 +84,11 @@ def validate_reduction(row: dict, profile: dict, new_amount: object) -> Decimal:
 
     Raises:
         StateError: any rule violated (invalid reductions never apply).
+
+    Policy note: a blank/``None`` ``minimum_allowed_amount`` fails the
+    ``Decimal`` type gate, so no ``reduce_to`` is offered on that event
+    (only ``stop``, if otherwise eligible). This is the conservative
+    reading — never invent a reduction floor the dataset did not state.
     """
     flex = str(row.get("flexibility", ""))
     cat = str(row.get("category", ""))
