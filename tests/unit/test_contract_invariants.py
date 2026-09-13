@@ -27,3 +27,7 @@ def test_earliest():
     assert check_earliest_consistency("affordable_now", "2024-03-03", "2024-03-03")
     assert not check_earliest_consistency("affordable_now", "2024-03-03", "2024-03-04")
     assert check_earliest_consistency("not_affordable", "2024-03-03", "")
+    # Tier-1 regression: not_affordable MAY carry a real earliest (capacity
+    # exists past the deadline, but no eligible plan completes safely).
+    assert check_earliest_consistency("not_affordable", "2025-11-06", "2026-01-15")
+    assert not check_earliest_consistency("not_affordable", "2025-11-06", "2025-01-01")
