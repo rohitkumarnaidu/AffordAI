@@ -189,13 +189,15 @@ def test_recurring_month_boundary_and_year_salary():
 
 def test_missing_fx_and_unsupported_pair_end_to_end():
     ctx = Ctx([_ev("e1", currency="USD", amount=Decimal("25"), settlement_date=date(2025, 1, 12))])
-    _, flows, _, notes = _run(ctx, rates=RateTable([]))
-    assert abs(flows[0].amount_home) == Decimal("25")  # debit kept at face
+    _, flows, unknowns, notes = _run(ctx, rates=RateTable([]))
+    assert flows == []  # fail-closed excluded
     assert any("fx-missing" in n for n in notes)
+    assert any(u["event_id"] == "e1" for u in unknowns)
     ctx2 = Ctx([_ev("e1", currency="AAA", amount=Decimal("25"))])
-    _, flows2, _, notes2 = _run(ctx2, rates=RateTable([]))
-    assert abs(flows2[0].amount_home) == Decimal("25")
+    _, flows2, unknowns2, notes2 = _run(ctx2, rates=RateTable([]))
+    assert flows2 == []
     assert any("fx-missing" in n for n in notes2)
+    assert any(u["event_id"] == "e1" for u in unknowns2)
 
 
 def test_forecast_floor_invariant_across_window():

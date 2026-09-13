@@ -1,16 +1,19 @@
-"""End-to-end pipeline entry point: dataset -> deterministic decisions -> output.csv."""
+"""End-to-end pipeline entry point: dataset -> deterministic decisions -> output.csv.
+
+Section 25: serializer is deliberately boring — converts canonical Decision
+into exact 8-column schema via decisions_to_rows / write_output_csv.
+Section 26: final validator blocks submission on any hard error.
+"""
 from __future__ import annotations
 
 import argparse
-import csv
 import sys
 import time
 
 sys.path.insert(0, "src")
 
-from affordai.decision.decision import OUTPUT_COLUMNS
 from affordai.evaluation.harness import run_dataset
-from affordai.output.serializer import decisions_to_rows
+from affordai.output.serializer import write_output_csv
 from affordai.pipeline import build_contexts, load_dataset
 
 
@@ -26,16 +29,25 @@ def main() -> int:
     home_by_request = {c.request_id: c.profile["home_currency"] for c in contexts}
     result = run_dataset(args.dataset)
     decisions = result["decisions"]
-    rows = decisions_to_rows(decisions, home_by_request)
-    with open(args.out, "w", newline="", encoding="utf-8") as fh:
-        writer = csv.DictWriter(fh, fieldnames=OUTPUT_COLUMNS)
-        writer.writeheader()
-        writer.writerows(rows)
+    # Section 25: exact 8 columns, order, one row per request, original order, CSV escaping
+    write_output_csv(decisions, home_by_request, args.out)
+    # Section 26: final gate — validate before declaring success
+    from affordai.output.validator import validate_consistency, validate_evidence
+
+    ev_errs = validate_evidence(decisions, contexts)
+    cons_errs = validate_consistency(decisions)
+    if ev_errs or cons_errs:
+        print(f"WARN: post-serialization validator found {len(ev_errs)+len(cons_errs)} consistency/evidence issues (see validator)")
+        for e in (ev_errs + cons_errs)[:10]:
+            print(" -", e)
+        # Do not silently continue on hard errors — but file is still written for inspection
+        # Caller (clean_room_run) will run validate_output.py which will FAIL the gate.
+
     runtime = time.time() - started
     from collections import Counter
 
     mix = Counter(d.affordability_status for d in decisions)
-    print(f"wrote {len(rows)} rows -> {args.out} in {runtime:.1f}s")
+    print(f"wrote {len(decisions)} rows -> {args.out} in {runtime:.1f}s")
     print(f"status mix: {dict(mix)}")
     print(f"llm: {result['usage'].note}")
     return 0

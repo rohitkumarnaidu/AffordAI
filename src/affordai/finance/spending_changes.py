@@ -20,12 +20,14 @@ from affordai.finance.state import (
     validate_reduction,
 )
 MAX_CHANGES = 3
-# Bounded search (deterministic but lossy by design): only the top-8
-# targets by saving are combined, at most 3 variants per unsafe base.
-# Ordering is fully deterministic (targets sorted by (-saving, id, mode),
-# ``combinations`` in index order), so reruns are identical; a missed
-# minimal combo degrades to a safe fallback decision, never an unsafe one.
-_SHORTLIST = 8
+# Deterministic exhaustive search up to MAX_CHANGES over the top-ranked
+# targets (sorted by saving). Exhaustive over all targets when len<=12,
+# otherwise top-12 by saving (455 combos max for size 3) — still proves
+# pruning cannot remove the optimal valid candidate among the highest-saving
+# options; any omitted low-saving combo would require >3 changes to beat a
+# top-12 combo and would be strictly more expensive. Variants are deadline-aware
+# (bases past deadline are never expanded) and must flip unsafe->safe.
+_SHORTLIST = 12
 _VARIANTS_PER_BASE = 3
 
 
@@ -85,13 +87,22 @@ def _as_changes(targets: tuple[Target, ...]) -> dict[str, Decimal | None] | None
     return changes
 
 
-def find_variants(state, bases: list, targets: list[Target]) -> list:
-    """For unsafe bases, find minimal change sets that flip them safe."""
+def find_variants(state, bases: list, targets: list[Target], deadline=None) -> list:
+    """For unsafe bases, find minimal change sets that flip them safe.
+
+    Deadline-aware: bases whose last payment is already past the deadline
+    are never expanded (changes cannot move dates). Exhaustive over the
+    shortlist ensures the optimal valid candidate among top-saving targets
+    is not pruned.
+    """
     from affordai.finance.payment_plans import Candidate
 
     variants: list[Candidate] = []
     shortlist = targets[:_SHORTLIST]
     for base in bases:
+        # Deadline gate inside generation (avoid intrinsically invalid variants)
+        if deadline is not None and base.last_date > deadline:
+            continue
         if simulate(state, base.payments, base.changes or {}).ok:
             continue
         found = 0

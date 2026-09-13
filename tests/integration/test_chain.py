@@ -93,19 +93,43 @@ def test_decision_to_output_to_validator(tmp_path):
         encoding="utf-8",
     )
     out_path = tmp_path / "output.csv"
+    # Build canonical Decision as frozen object — explanation built before construction
+    tmp_for_expl = type("Tmp", (), {
+        "amount_safe_to_pay": Decimal("20000"),
+        "affordability_status": "affordable_now",
+        "recommended_payment_method": "full_payment",
+        "payment_plan": "2025-01-10:20000",
+        "earliest_date_for_full_payment": "2025-01-10",
+        "spending_changes_needed": "none",
+        "evidence": (),
+    })()
+    expl = explanation_mod.build(tmp_for_expl, "20000", "2025-01-10", "INR")
+    assert explanation_mod.validate(expl, tmp_for_expl)
     d = Decision(
         original_index=0, request_id="r1", user_id="u1",
         amount_safe_to_pay=Decimal("20000"),
         affordability_status="affordable_now",
         recommended_payment_method="full_payment",
-        payment_plan=[(date(2025, 1, 10), Decimal("20000"))],
+        payment_plan="2025-01-10:20000",
         earliest_date_for_full_payment="2025-01-10",
-        spending_changes_needed={},
-        decision_explanation="",
-        evidence=[],
+        spending_changes_needed="none",
+        decision_explanation=expl,
+        evidence=(),
+        explanation_facts={
+            "amount_safe_to_pay": Decimal("20000"),
+            "affordability_status": "affordable_now",
+            "recommended_payment_method": "full_payment",
+            "payment_plan": "2025-01-10:20000",
+            "earliest_date_for_full_payment": "2025-01-10",
+            "spending_changes_needed": "none",
+            "evidence": (),
+            "requested_amount": Decimal("20000"),
+            "home_currency": "INR",
+            "request_date": "2025-01-10",
+        },
+        requested_amount=Decimal("20000"),
+        home_currency="INR",
     )
-    d.decision_explanation = explanation_mod.build(d, "20000", "2025-01-10", "INR")
-    assert explanation_mod.validate(d.decision_explanation, d)
     import csv
 
     rows = decisions_to_rows([d], {"r1": "INR"})

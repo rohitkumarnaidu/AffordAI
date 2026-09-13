@@ -218,13 +218,14 @@ def test_blank_amount_is_unknown_never_zero():
     assert any(u["event_id"] == "b1" for u in unknowns)
 
 
-def test_missing_fx_credit_excluded_debit_kept_at_face():
+def test_missing_fx_credit_excluded_debit_excluded_fail_closed():
     rt = RateTable([])  # no rates at all
     ctx = _MiniCtx(date(2025, 1, 10), events=[
         _ev("fc", direction="credit", status="scheduled", currency="USD", amount=Decimal("500"), category="salary"),
         _ev("fd", direction="debit", status="scheduled", currency="USD", amount=Decimal("50"), category="rent"),
     ])
-    flows, _, notes = build_flows(ctx, rt, set(), {}, {})
+    flows, unknowns, notes = build_flows(ctx, rt, set(), {}, {})
     by_id = {f.event_id: f for f in flows}
-    assert "fc" not in by_id and abs(by_id["fd"].amount_home) == Decimal("50")
+    assert "fc" not in by_id and "fd" not in by_id
     assert any("fx-missing" in n for n in notes)
+    assert any(u["event_id"] == "fd" for u in unknowns)

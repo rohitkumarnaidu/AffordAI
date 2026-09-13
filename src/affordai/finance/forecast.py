@@ -137,9 +137,27 @@ def earliest_full_date(state) -> date | None:
     Returns ``None`` (serialized as ``""``) when never safe in-window.
     Deadline is deliberately ignored here (Tier-1 capacity semantics);
     ``payment_plans``/``eligibility`` enforce it downstream.
+
+    Universal post-condition (fail-closed): if D returned, D is safe and
+    every allowed date before D is unsafe; if None, every allowed date
+    is unsafe. Violations raise (pipeline degrades to fallback, never
+    silently wrong).
     """
+    found: date | None = None
     for offset in range(WINDOW_DAYS):
         day = state.request_date + timedelta(days=offset)
         if simulate(state, [(day, state.requested)]).ok:
-            return day
+            found = day
+            break
+    if found is not None:
+        assert simulate(state, [(found, state.requested)]).ok
+        # all earlier must be unsafe (proves first-safe minimality)
+        for off in range((found - state.request_date).days):
+            d = state.request_date + timedelta(days=off)
+            assert not simulate(state, [(d, state.requested)]).ok, f"earliest {found} but earlier {d} also safe"
+        return found
+    # never safe: assert every date unsafe
+    for offset in range(WINDOW_DAYS):
+        day = state.request_date + timedelta(days=offset)
+        assert not simulate(state, [(day, state.requested)]).ok, f"earliest None but {day} safe"
     return None

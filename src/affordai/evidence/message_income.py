@@ -48,7 +48,7 @@ CUR_RE = re.compile(r"(EUR|USD|IDR|INR|ZAR|Rp|\$|€)")
 from affordai.evidence.message_interpreter import _AMOUNT_RE, _DATE_RE, SALARY_RE
 
 
-def _routine_amount(ctx) -> Decimal | None:
+def _routine_amount(ctx, home: str | None = None, rate_table=None) -> Decimal | None:
     rows = sorted(
         (
             e
@@ -61,7 +61,28 @@ def _routine_amount(ctx) -> Decimal | None:
     )[-3:]
     if not rows:
         return None
-    return Decimal(str(median([r["amount"] for r in rows])))
+    # Normalize to home currency BEFORE median (median of converted values)
+    vals: list[Decimal] = []
+    for r in rows:
+        amt = r["amount"]
+        if home is None or rate_table is None or r.get("currency") == home:
+            vals.append(amt)
+        else:
+            try:
+                conv, _ = rate_table.convert_to_home(amt, r["currency"], home, r["settlement_date"])
+            except Exception:
+                try:
+                    conv = rate_table.to_home(amt, r["currency"], home, r["settlement_date"])
+                except Exception:
+                    conv = None
+            if conv is not None:
+                vals.append(conv)
+            else:
+                # missing FX -> skip this row (conservative, do not invent)
+                continue
+    if not vals:
+        return None
+    return Decimal(str(median(vals)))
 
 
 def _payday_dom(ctx, fallback: int) -> int:
@@ -86,7 +107,7 @@ def _payday_dom(ctx, fallback: int) -> int:
     return max(freq, key=lambda d: (freq[d], last_seen[d]))
 
 
-def confirmed_series(ctx, message: dict, home: str):
+def confirmed_series(ctx, message: dict, home: str, rate_table=None):
     """Return (incomes, notes); incomes = list of (day, amount_home)."""
     notes: list[str] = []
     if message.get("source_type") != "employer":
@@ -122,7 +143,7 @@ def confirmed_series(ctx, message: dict, home: str):
             notes.append(f"{message['message_id']}: non-home pay currency, skipped")
             return [], notes
     if amount is None:
-        amount = _routine_amount(ctx)
+        amount = _routine_amount(ctx, home, rate_table)
         if amount is None:
             notes.append(f"{message['message_id']}: no routine amount, skipped")
             return [], notes

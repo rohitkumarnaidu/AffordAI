@@ -351,19 +351,23 @@ def build_flows(
         if not (req_date <= day <= end):
             continue
         # Traceable conversion (captures rate metadata per flow)
+        # For pending debits FX uses original settlement date (spec settlement-date rule),
+        # but flow posts at request_date to reserve.
+        fx_day = day
+        if kind == "pending_debit":
+            orig_settle = amend_dates.get(eid, e["settlement_date"])
+            if isinstance(orig_settle, date):
+                fx_day = orig_settle
         trace = None
         try:
-            conv, trace = rate_table.convert_to_home(amount, e["currency"], home, day)
+            conv, trace = rate_table.convert_to_home(amount, e["currency"], home, fx_day)
         except Exception:
-            conv = rate_table.to_home(amount, e["currency"], home, day)
+            conv = rate_table.to_home(amount, e["currency"], home, fx_day)
             trace = None
         if conv is None:
-            if e["direction"] == "credit":
-                notes.append(f"fx-missing: excluded foreign credit {eid}")
-                continue
-            notes.append(f"fx-missing: kept foreign debit {eid} at face")
-            conv = amount
-            trace = None
+            notes.append(f"fx-missing: excluded foreign {'credit' if e['direction'] == 'credit' else 'debit'} {eid} - no rate for {e['currency']}->{home} on {fx_day}")
+            unknowns.append({"event_id": eid, "status": e["status"], "reason": "fx-missing"})
+            continue
         signed = quantize_money(conv, home)
         if e["direction"] == "debit":
             signed = -signed

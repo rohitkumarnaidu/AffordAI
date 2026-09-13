@@ -700,7 +700,7 @@ def decide_context(
     extra_confirmed: list[tuple] = []
     for message in sorted(ctx.messages, key=lambda m: (str(m["sent_at"]), m["message_id"])):
         try:
-            series, _income_notes = confirmed_series(ctx, message, home)
+            series, _income_notes = confirmed_series(ctx, message, home, tables["rates"])
         except Exception:
             continue
         for day, amount in series:
@@ -735,7 +735,7 @@ def decide_context(
         state, ctx.payment_options, safe, earliest, req["allows_partial_payment"]
     )
     targets = spending_changes.candidate_targets(state, ctx.profile)
-    candidates = candidates + spending_changes.find_variants(state, candidates, targets)
+    candidates = candidates + spending_changes.find_variants(state, candidates, targets, state.deadline)
     eligible = filter_candidates(
         candidates, ctx.profile, req["allows_partial_payment"], req["desired_completion_date"]
     )
@@ -754,6 +754,64 @@ def decide_context(
         plan = format_plan(winner.payments, home)
         changes = format_changes(winner.changes or {}, home)
 
+    # Evidence: sorted immutable tuple of provenance-preserving source_ids
+    evidence_ids = tuple(
+        sorted(
+            {
+                f.source_id
+                for f in facts
+                if f.kind in ("cancel", "settle", "amend_amount", "amend_date", "delay", "confirm", "amount", "preference")
+                and (f.event_id or f.kind in ("preference", "confirm", "settle"))
+            }
+        )
+    )
+    earliest_str = earliest.isoformat() if earliest else ""
+    # Explanation facts — validated subset for grounded explanation
+    explanation_facts = {
+        "request_id": ctx.request_id,
+        "amount_safe_to_pay": safe,
+        "requested_amount": requested,
+        "affordability_status": status,
+        "recommended_payment_method": method,
+        "payment_plan": plan,
+        "earliest_date_for_full_payment": earliest_str,
+        "spending_changes_needed": changes,
+        "evidence": evidence_ids,
+        "request_date": req_date.isoformat(),
+        "home_currency": home,
+        "deadline": ctx.request["desired_completion_date"].isoformat()
+        if hasattr(ctx.request["desired_completion_date"], "isoformat")
+        else str(ctx.request["desired_completion_date"]),
+    }
+    # Build explanation from validated facts only (never recomputes financial decision)
+    from affordai.finance.money import format_amount as _fmt
+
+    # Use new grounded builder that consumes facts; fallback to legacy if needed
+    try:
+        # explanation_mod.build now validates via facts; we pass a minimal decision-like object
+        _tmp_decision_for_expl = type(
+            "TmpDec", (), {**explanation_facts, "evidence": evidence_ids}
+        )()
+        # Ensure attributes match what explanation_mod.build expects (Decision-like)
+        _tmp_decision_for_expl.amount_safe_to_pay = safe
+        _tmp_decision_for_expl.affordability_status = status
+        _tmp_decision_for_expl.recommended_payment_method = method
+        _tmp_decision_for_expl.payment_plan = plan
+        _tmp_decision_for_expl.earliest_date_for_full_payment = earliest_str
+        _tmp_decision_for_expl.spending_changes_needed = changes
+        _tmp_decision_for_expl.evidence = evidence_ids
+        expl = explanation_mod.build(
+            _tmp_decision_for_expl, _fmt(requested, home), req_date.isoformat(), home
+        )
+        # Validate explanation against facts; if invalid, use safe fallback
+        if not explanation_mod.validate(expl, _tmp_decision_for_expl):
+            expl = explanation_mod.build_fallback(explanation_facts) if hasattr(explanation_mod, "build_fallback") else expl
+    except Exception:
+        expl = explanation_mod.build_fallback(explanation_facts) if hasattr(explanation_mod, "build_fallback") else (
+            f"Requested {_fmt(requested, home)} {home} on {req_date.isoformat()}: {_fmt(safe, home)} {home} safe (status {status}, method {method}). "
+            f"Full payment earliest safe: {earliest_str or 'not in forecast'}."
+        )
+
     decision = Decision(
         original_index=ctx.original_index,
         request_id=ctx.request_id,
@@ -762,21 +820,30 @@ def decide_context(
         affordability_status=status,
         recommended_payment_method=method,
         payment_plan=plan,
-        earliest_date_for_full_payment=earliest.isoformat() if earliest else "",
+        earliest_date_for_full_payment=earliest_str,
         spending_changes_needed=changes,
-        decision_explanation="",
-        evidence=sorted(
-            {
-                f.source_id
-                for f in facts
-                if f.kind in ("cancel", "settle", "amend_amount", "amend_date", "delay", "confirm", "amount", "preference")
-                and (f.event_id or f.kind in ("preference", "confirm", "settle"))
-            }
-        ),
+        decision_explanation=expl,
+        evidence=evidence_ids,
+        explanation_facts=explanation_facts,
+        requested_amount=requested,
+        home_currency=home,
     )
-    decision.decision_explanation = explanation_mod.build(
-        decision, format_amount(requested, home), req_date.isoformat(), home
-    )
+    # Defense-in-depth: validate Decision invariant immediately; any violation -> fallback
+    # (Decision.__post_init__ already validates; extra check catches downstream drift)
+    try:
+        # Re-validate cross-field consistency via invariants (includes earliest vs status)
+        from affordai.decision.invariants import check_earliest_consistency, check_status_method_consistency
+
+        if not check_status_method_consistency(status, method):
+            raise ValueError("status/method inconsistent")
+        if not check_earliest_consistency(status, req_date.isoformat(), earliest_str):
+            raise ValueError("earliest/status inconsistent")
+    except Exception as _inv_exc:
+        if trace is not None:
+            trace.record("decision-invariant-violation", ctx.request_id, str(_inv_exc)[:200])
+        # Fail-closed: degrade to safe fallback preserving capacity
+        return _fallback_decision(ctx, f"invariant:{type(_inv_exc).__name__}", safe, earliest)
+
     if trace is not None:
         trace.record(
             "decision",
@@ -788,23 +855,83 @@ def decide_context(
     return decision
 
 
-def _fallback_decision(ctx: RequestContext, reason: str) -> Decision:
-    """Safest valid decision when a request cannot be processed: never crash."""
+def _fallback_decision(
+    ctx: RequestContext, reason: str, safe: Decimal | None = None, earliest=None
+) -> Decision:
+    """Safest valid decision when a request cannot be processed: never crash.
+
+    Preserves capacity information (safe amount + earliest date) when it can
+    be derived, otherwise falls back to 0/"" — never invents a plan.
+    `earliest` may be date or ""/None.
+    """
+    from datetime import date as _date
+
+    amt = safe if isinstance(safe, Decimal) else Decimal("0")
+    if earliest is None or earliest == "":
+        ear_str = ""
+    elif isinstance(earliest, _date):
+        ear_str = earliest.isoformat()
+    elif isinstance(earliest, str):
+        ear_str = earliest
+    else:
+        ear_str = ""
+    try:
+        requested_fallback = ctx.request.get("requested_amount")
+        if not isinstance(requested_fallback, Decimal):
+            from affordai.finance.money import parse_amount
+
+            try:
+                requested_fallback = parse_amount(requested_fallback)
+            except Exception:
+                requested_fallback = None
+        home_fallback = ctx.profile.get("home_currency")
+    except Exception:
+        requested_fallback = None
+        home_fallback = None
+    # Clamp safe to requested bounds for fallback as well
+    if isinstance(requested_fallback, Decimal) and isinstance(amt, Decimal):
+        if amt < 0:
+            amt = Decimal("0")
+        if amt > requested_fallback:
+            from affordai.finance.money import quantize_money
+
+            try:
+                amt = quantize_money(requested_fallback, home_fallback or "INR")
+            except Exception:
+                amt = requested_fallback
+    fallback_facts = {
+        "request_id": ctx.request_id,
+        "amount_safe_to_pay": amt,
+        "requested_amount": requested_fallback,
+        "affordability_status": "not_affordable",
+        "recommended_payment_method": "not_recommended",
+        "payment_plan": "none",
+        "earliest_date_for_full_payment": ear_str,
+        "spending_changes_needed": "none",
+        "evidence": (),
+        "request_date": str(ctx.request.get("request_date", "")),
+        "home_currency": home_fallback,
+        "deadline": str(ctx.request.get("desired_completion_date", "")),
+        "reason": reason,
+    }
     return Decision(
         original_index=ctx.original_index,
         request_id=ctx.request_id,
         user_id=ctx.user_id,
-        amount_safe_to_pay=Decimal("0"),
+        amount_safe_to_pay=amt,
         affordability_status="not_affordable",
         recommended_payment_method="not_recommended",
         payment_plan="none",
-        earliest_date_for_full_payment="",
+        earliest_date_for_full_payment=ear_str,
         spending_changes_needed="none",
         decision_explanation=(
             f"Processing failure ({reason}); safest fallback applied, "
             "no payment recommended."
         ),
-        evidence=[],
+        evidence=(),
+        explanation_facts=fallback_facts,
+        requested_amount=requested_fallback if isinstance(requested_fallback, Decimal) else None,
+        home_currency=home_fallback if isinstance(home_fallback, str) else None,
     )
 
 
@@ -821,7 +948,48 @@ def _decide_safe(
     except Exception as exc:  # never crash the batch; degrade to safest valid row
         if trace is not None:
             trace.record("decision-fallback", ctx.request_id, f"{type(exc).__name__}: {exc}"[:200])
-        return _fallback_decision(ctx, type(exc).__name__), True
+        # Best-effort capacity preservation: try to compute safe/earliest even on failure
+        safe_preserve: Decimal | None = None
+        earliest_preserve = None
+        try:
+            # Re-derive minimal state for capacity (no LLM, deterministic)
+            registry, _ = _collect_evidence(ctx, os.path.join(dataset_dir, "media", "images"), llm_config, None)
+            facts = registry.facts_for(ctx.request_id)
+            cancelled = conflict_resolver.cancelled_event_ids(facts)
+            extra_preserve: list[tuple] = []
+            for m in sorted(ctx.messages, key=lambda mm: (str(mm.get("sent_at")), mm.get("message_id", ""))):
+                try:
+                    from affordai.evidence.message_income import confirmed_series as _cs
+
+                    series, _ = _cs(ctx, m, ctx.profile["home_currency"], tables.get("rates"))
+                    for _d, _a in series:
+                        extra_preserve.append((_d, _a, m.get("message_id", "")))
+                except Exception:
+                    continue
+            amend_raw = conflict_resolver.amended_amounts(facts)
+            amend_amounts: dict[str, Decimal] = {}
+            for _eid, _raw in amend_raw.items():
+                try:
+                    _v = parse_amount(_raw)
+                except ValueError:
+                    continue
+                if _v is not None and _v > 0:
+                    amend_amounts[_eid] = _v
+            amend_dates = {}
+            for _eid, _raw in conflict_resolver.amended_dates(facts).items():
+                try:
+                    from datetime import datetime as _dt
+
+                    amend_dates[_eid] = _dt.strptime(_raw, "%Y-%m-%d").date()
+                except ValueError:
+                    continue
+            flows, unknowns, notes = build_flows(ctx, tables["rates"], cancelled, amend_amounts, amend_dates, extra_preserve)
+            state = build_state(ctx, flows, unknowns, notes)
+            safe_preserve = max_safe_today(state)
+            earliest_preserve = earliest_full_date(state)
+        except Exception:
+            pass
+        return _fallback_decision(ctx, type(exc).__name__, safe_preserve, earliest_preserve), True
 
 
 def run(
