@@ -83,6 +83,33 @@ Verified: candidates generated correctly, invalid rejected, preferences/deadline
 | Preference bypass | Eligibility gate rejects before ranking | decision/eligibility.py |
 | Boundary | Re-simulation tests at exact floor, deadline, 90-day, fee-shifting | finance/forecast, tests |
 
+## Secret exposure (verified 2026-09-13)
+
+- `.env` (live keys) is gitignored and never committed; `.env.example` holds
+  placeholders only (verified by diff of key names, values empty).
+- `log.txt` is gitignored, append-only, secrets redacted (`[REDACTED]`);
+  `evaluation/usage_report.md` carries counts only (no prompts/keys — attested
+  in-file, enforced by `redact()` in `usage.to_markdown` and secret-safe
+  `ModelCallRecord`); `output.csv` carries decisions only.
+- `code.zip` packaging scan: no `.env`, no `__pycache__`, no secrets
+  (forbidden-scan in build-checklist Module 35.2 evidence).
+- `_try_load_dotenv` never logs values; failures are silent.
+
+## Cross-request contamination (verified)
+
+- `check_batch_safe` fails closed on multi-request/user batches; `EvidenceRegistry`
+  rejects facts whose request/user ownership mismatches the context; pipeline
+  builds one isolated `RequestContext` per request (dict copy). Tested by
+  cross-request rejection cases in `test_untrusted.py` and `test_s68_integrity.py`.
+
+## Output manipulation (verified)
+
+- Final rows cannot bypass validators: `Decision.__post_init__` enforces
+  bounds/enums/consistency at construction; `decisions_to_rows` enforces
+  sorted-by-`original_index`/duplicate/8-col; `validate_output.py` exits 1 on
+  any hard error. Mutation tests (reordered/invented/out-of-bounds/bogus) are
+  all rejected (`test_sections_22_26.py:26.x`, 13/13).
+
 ## Non-goals
 
 Live banking/market access, voice notes (none in dataset), asset-price prediction.

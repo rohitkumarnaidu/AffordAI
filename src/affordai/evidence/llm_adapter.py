@@ -98,8 +98,70 @@ class LlmConfig:
     reason: str = "disabled"
 
 
+def _try_load_dotenv() -> None:
+    """Best-effort load of repo-root .env into os.environ without overriding existing vars.
+
+    No external dependency required. Tries python-dotenv if installed, else falls
+    back to a minimal parser. Never logs secret values; failures are silent
+    (E0 stays deterministic). Single source for dotenv — no duplicate loaders.
+    """
+    try:
+        if os.environ.get("LLM_ENABLED") or os.environ.get("API_KEY"):
+            return  # already exported — respect caller env
+        # Try python-dotenv first if available
+        try:
+            from dotenv import load_dotenv as _ld  # type: ignore
+
+            _ld(override=False)
+            if os.environ.get("LLM_ENABLED") or os.environ.get("API_KEY"):
+                return
+        except Exception:
+            pass
+        # Minimal manual parser: look for .env at cwd and repo root (2 levels up from this file)
+        candidates: list[str] = []
+        try:
+            candidates.append(os.path.join(os.getcwd(), ".env"))
+            this_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # src/affordai/evidence -> src/affordai -> src -> repo
+            # Actually repo is 3 levels up from evidence file: evidence/llm_adapter.py -> evidence -> affordai -> src -> repo
+            # Simpler: walk up 4 levels
+            cur = os.path.abspath(__file__)
+            for _ in range(5):
+                cur = os.path.dirname(cur)
+                candidates.append(os.path.join(cur, ".env"))
+        except Exception:
+            pass
+        for path in candidates:
+            try:
+                if not os.path.isfile(path):
+                    continue
+                with open(path, encoding="utf-8") as fh:
+                    for raw in fh:
+                        line = raw.strip()
+                        if not line or line.startswith("#"):
+                            continue
+                        if "=" not in line:
+                            continue
+                        k, v = line.split("=", 1)
+                        k = k.strip()
+                        v = v.strip().strip('"').strip("'")
+                        if not k or k in os.environ:
+                            continue
+                        if k in ("API_KEY", "MODEL_PROVIDER", "MODEL_NAME", "VISION_MODEL_NAME", "LLM_ENABLED", "LLM_TIMEOUT_S", "LLM_MAX_RETRIES", "LLM_MIN_CONFIDENCE", "VISION_MODEL_TIMEOUT_S", "LOG_LEVEL"):
+                            os.environ[k] = v
+                if os.environ.get("LLM_ENABLED") or os.environ.get("API_KEY"):
+                    return
+            except Exception:
+                continue
+    except Exception:
+        return
+
+
 def load_config_from_env(env: dict | None = None) -> LlmConfig:
-    src = env if env is not None else os.environ
+    if env is None:
+        _try_load_dotenv()
+        src = os.environ
+    else:
+        src = env
     enabled = str(src.get("LLM_ENABLED", "")).strip() == "1"
     if not enabled:
         return LlmConfig(enabled=False, reason="LLM_ENABLED != 1")
@@ -482,16 +544,26 @@ def propose_facts(
     The model backend is intentionally unplugged in E0 (no SDK vendored):
     with config.enabled True but no backend, this records `no-backend` and
     returns zero proposals so the deterministic path proceeds unchanged.
+    Token estimation is still recorded (LOCAL MEASUREMENT) so usage_report
+    remains truthful even without a provider.
     """
     if not config.enabled:
         return AdapterResult(facts=[], calls=0, fallback_reason=config.reason)
     purpose = "message_extract" if kind == "message" else "image_amount_extract"
+    # LOCAL MEASUREMENT: estimate input tokens from minimized payload JSON
+    try:
+        est_in = estimate_tokens(json.dumps(payload or {}, default=str))
+    except Exception:
+        est_in = 0
     record = ModelCallRecord(
         timestamp=_utc_now_iso(),
         request_id=str((payload or {}).get("request_id") or (payload or {}).get("event_id") or ""),
         provider=config.provider,
         model=config.model if purpose == "message_extract" else (config.vision_model or config.model),
         purpose=purpose,
+        input_tokens=est_in,
+        output_tokens=0,
         fallback="no-backend",
+        token_source="estimated",
     )
     return AdapterResult(facts=[], calls=0, fallback_reason="no-backend", records=[record])

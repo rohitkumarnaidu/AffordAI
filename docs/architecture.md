@@ -45,6 +45,34 @@ Spec-first, correctness-over-sophistication: the score is decided by safe-amount
 valid plans, and constraint compliance — all exact computation. No multi-agent framework,
 no dashboard/DB, no second provider until an ablation win is measured.
 
+## Trust boundary
+
+UNTRUSTED (evidence, never authority): `messages.csv` text, `images.csv` + PNG bytes,
+any model output from `llm_adapter.propose_facts`, external env/config values.
+TRUSTED AFTER VALIDATION: normalized `Evidence` that passed registry ownership +
+conflict precedence; deterministic financial state/forecast/plans; the canonical
+`Decision`; validator-approved rows. The rule engine never reads raw message text
+(`message_interpreter` emits typed facts only), and the image path may only emit
+`kind==amount` facts (`pipeline.py:_collect_evidence` drops all other kinds).
+
+## Failure boundary
+
+Every model/external-tool failure has an explicit safe policy (`llm_adapter.FAILURE_MATRIX`,
+spec §9): timeout/429/5xx → bounded retry → empty fallback; invalid schema →
+immediate drop; missing evidence → UNKNOWN marker; impossible plan → candidate
+rejected → `not_recommended`; unexpected per-request exception → `_decide_safe`
+fallback row; validator error → exit 1. Failures are logged to the Sec-33
+`RequestTrace.failures` list plus the legacy `Trace`, never with secret values.
+
+## Validation boundary (six layers, each fail-closed)
+
+1. input validation (`ingestion/*`, `pipeline._validate_request_identity/_validate_fk_integrity`)
+2. evidence validation (`evidence_registry.add`, `_validate_proposal`, conflict precedence)
+3. financial invariant validation (`state.build` guards, `forecast.simulate` floor re-check)
+4. plan validation (`payment_plans` shape gates, `eligibility`, `expand_schedule` exactness)
+5. decision validation (`decision.__post_init__`, `invariants.check_earliest_consistency`, `rules.derive`)
+6. output validation (`output/validator.validate_all`, `scripts/validate_output.py` gate)
+
 ## Rejected alternatives
 
 - LLM financial reasoning (unverifiable arithmetic) → rejected.

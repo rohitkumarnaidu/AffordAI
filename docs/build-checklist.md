@@ -111,25 +111,25 @@ Referenced by `AGENTS.md` §§27-27b, 30. Update as work lands.
 - [x] 23.2 concise, specific, decision-consistent -- Evidence: WHY+CONSTRAINT+PLAN+TIMING+EVIDENCE, `validate` checks status/method/plan/date/amount/spending, filler rejected, fallback deterministic
 
 ## MODULE 24 -- AI layer
-- [x] 24.1/24.2/24.3 message/image/explanation prompts bounded, schema-validated, fallback + usage tracked; explanation receives validated facts only -- Evidence: `evidence/llm_adapter.py` bounded propose_facts allowlist, `pipeline.py` validated-or-dropped, `output/explanation.py` validated-facts-only with fallback, `evaluation/usage_report.md` 0 calls E0
+- [x] 24.1/24.2/24.3 message/image/explanation prompts bounded, schema-validated, fallback + usage tracked; explanation receives validated facts only -- Evidence: `evidence/llm_adapter.py` bounded propose_facts allowlist, `pipeline.py` validated-or-dropped, `output/explanation.py` validated-facts-only with fallback, `evaluation/usage_report.md` FINAL run (E0 config 0 calls; metered .env groq run 77 calls / 7864 est. tokens / 0 facts, decisions identical)
 
 ## MODULE 25 -- Evaluation (`evaluation/`, `scripts/evaluate.py`)
-- [x] 25.1 local proxies: structural/financial/decision/plan/evidence/explanation/robustness (NOT official score) -- Evidence: `evaluation/metrics.py` 9 metrics + METRIC_DEFS + `full_dataset_metrics` 0 errors, `evaluation/README.md` official-vs-local, `evaluation/usage_report.md` 250 rows 0 tokens
+- [x] 25.1 local proxies: structural/financial/decision/plan/evidence/explanation/robustness (NOT official score) -- Evidence: `evaluation/metrics.py` 9 metrics + METRIC_DEFS + `full_dataset_metrics` 0 errors, `evaluation/README.md` official-vs-local, `evaluation/usage_report.md` 250 rows (E0 0 tokens; metered 7864 est.)
 - [x] 25.2 sample/edge/adversarial/regression/full-dataset suites -- Evidence: `evaluation/datasets/*.json` 5 manifests, `scripts/eval_report.py` baseline/final 250 rows all green, `tests/edge_cases` + `tests/adversarial/test_sections_27_30_threats.py` 29 cases + `tests/regression/test_sections_27_30_regression.py` 15 groups, full 250 rows
 - [x] 25.3 ablation E0->E7; keep AI only on measured wins -- Evidence: `src/affordai/evaluation/ablation.py` E0-E2 real runs + E3-E7 instruments, `scripts/run_ablation.py` 23.7s, `evaluation/reports/ablation_results.{json,md}` 8-col + component tables, E0 0.40/0.40/11ev, E1 0.44/0.48/11ev, E2 0.44/0.48/0ev, E3 132/250 facts, E5 250/250 consistent, E6 all controls caught, E7 0 tokens, decisions KEEP with deltas documented
 
 ## MODULE 26 -- Regression (`tests/regression/`)
 - [x] 26.1 fixtures: row-order, evidence mismatch, cancel/amend, currency, date, plan, preference -- Evidence: `tests/regression/test_guards.py`, `test_p0_hardening.py:12-230 (12 cases)`, `test_metamorphic.py`, `test_sections_22_26.py` 51 tests + `test_sections_27_30_regression.py` 15 required groups (each production-path, distinct params) + `tests/regression/REGRESSIONS.md` registry S29-R01..R05
-- [x] 26.2 gate: `pytest` + validator must pass before commits -- Evidence: `292 passed` (`pytest tests -q` 2026-09-13 16:34 IST), `validate_output.py PASS`, `clean_room_run.py PASS`, 44 new (29 adversarial +15 regression) green, 0 regressions removed
+- [x] 26.2 gate: `pytest` + validator must pass before commits -- Evidence: `354 passed` (`pytest tests -q` 2026-09-13 ~17:20 IST, incl. metered-tolerant `test_sec31_32`), `validate_output.py PASS`, `clean_room_run.py PASS`, 44 new (29 adversarial +15 regression) green, 0 regressions removed
 
 ## MODULE 27 -- Observability (`observability/tracing.py`)
 - [x] 27.1 per-request trace: request->evidence->facts->state->forecast->candidates->rejected->selected->decision->output -- Evidence: `observability/tracing.py` Trace, `pipeline.py` trace.record evidence/decision/fallback, `evaluation/harness.py` run_dataset with Trace
 - [x] 27.2 no secrets, structured, deterministic ids -- Evidence: Trace stores request_id + message only, no prompt/API key, deterministic request_id keys
 
 ## MODULE 28 -- Token & cost (`evaluation/usage_report.md`)
-- [x] 28.1 provider/model/calls/in/out/total tokens tracked -- Evidence: `evaluation/usage_report.md` 0 calls/0 in/0 out/0 total, `src/affordai/evaluation/usage.py` UsageReport + per_model, `pipeline.py` collects records, `scripts/build_output.py` persists FINAL run
-- [x] 28.2 total + per-request cost, per-model breakdown -- Evidence: usage_report.md 0.0000 total / 0.000000 per-req, Per-model breakdown n/a -- deterministic, PRICING table separate, UNKNOWN when unverified
-- [x] 28.3 report reflects the FINAL full-dataset run, no secrets -- Evidence: 250 rows, 2.6s, deterministic E0 (LLM_ENABLED != 1), Security line attests no prompts/keys, secret scan 0 hits
+- [x] 28.1 provider/model/calls/in/out/total tokens tracked -- Evidence: `evaluation/usage_report.md` FINAL run (E0 config: 0/0/0/0; metered .env groq: 77 calls / 7864 in / 0 out / cost UNKNOWN + per-model table), `src/affordai/evaluation/usage.py` UsageReport + per_model, `pipeline.py` collects records, `scripts/build_output.py` persists FINAL run
+- [x] 28.2 total + per-request cost, per-model breakdown -- Evidence: usage_report.md per-mode truth (E0 0.0000 total / 0.000000 per-req; metered UNKNOWN per `PRICING`-unverified rule, never fabricated 0), Per-model breakdown table when calls > 0
+- [x] 28.3 report reflects the FINAL full-dataset run, no secrets -- Evidence: 250 rows, 2.4s, metered groq run (LLM_ENABLED=1 via `.env`; E0 rerun stays 0/0/0.0000), decisions byte-identical (`d8386548517835c9`), Security line attests no prompts/keys, secret scan 0 hits
 
 ## MODULE 29 -- Security
 - [x] 29.1 `.env`/`.env.example`, clean history, secret scan -- Evidence: `.gitignore:.env`, `.env.example` placeholders only, secret scan 0 hits (2026-09-13)
@@ -138,7 +138,7 @@ Referenced by `AGENTS.md` §§27-27b, 30. Update as work lands.
 
 ## MODULE 30 -- Efficiency
 - [x] 30.1 full-run runtime measured, hot loops trimmed -- Evidence: scripts/benchmark.py TOTAL 2.389s (decide 84.4% inherent sim, 8.1ms/req); indexed joins by_user/by_request; replay d8386548 identical; tests/regression/test_sections_33_35.py 30 tests
-- [x] 30.2 model calls minimal, compact contexts, caching where safe, deterministic shortcuts -- Evidence: 0 calls/0 tokens E0; minimize_* + needs_llm_* gates; 16/16/11 image selectivity; CACHE NOT ADOPTED (measured, _CACHE empty)
+- [x] 30.2 model calls minimal, compact contexts, caching where safe, deterministic shortcuts -- Evidence: E0 config 0 calls/0 tokens; metered 77 `no-backend` records / 7864 est. tokens / 0 facts (dotenv autoload, no SDK vendored); minimize_* + needs_llm_* gates; 16/16/11 image selectivity; CACHE NOT ADOPTED (measured, _CACHE empty)
 - [x] 30.3 no spare agents/providers/dependencies -- Evidence: no SDK vendored, no dashboard/OTel/queue added (report 22); deps unchanged (pandas only)
 
 ## MODULE 31 -- Clean room (`scripts/clean_room_run.py`)
@@ -159,22 +159,54 @@ Referenced by `AGENTS.md` §§27-27b, 30. Update as work lands.
 
 ## MODULE 35 -- Final submission
 - [x] 35.1 `output.csv`: 250+header, order, schema, validator green -- Evidence: `output.csv` 250 rows 2026-09-13 16:51 IST, `validate_output.py PASS`, header 8 cols exact, replay d8386548517835c9
-- [x] 35.2 `code.zip`: runnable, README, evaluation files, no secrets, packaging tested -- Evidence: `code.zip` 123 entries 620ab03c 433KB, no .env/__pycache__/log.txt, includes new evaluation + security + trace; rebuilt 2026-09-13 16:55 IST
+- [x] 35.2 `code.zip`: runnable, README, evaluation files, no secrets, packaging tested -- Evidence: `code.zip` 123 entries sha256 `40493c2f…` 440KB, no .env/__pycache__/log.txt, usage_report in; rebuilt 2026-09-13 ~17:35 IST from manifest with refreshed working-tree content (metered usage_report + dotenv llm_adapter + §36-38 docs), all 123 refreshed, 0 stale
 - [x] 35.3 usage report complete (provider/model/calls/tokens/costs) -- Evidence: `evaluation/usage_report.md` 0/0/0/0.0000, per-model n/a deterministic, 250 rows, 2.6s, token source estimated
 - [x] 35.4 `log.txt` complete, append-only, identities exact, redacted -- Evidence: `log.txt` 3535 lines pre-final + new final closure entry, tool=opencode exact, redacted, append-only
 
 ---
 
-## Top-10 readiness gate (ALL true before submission)
+## MODULE 36 -- Documentation (§36, closed 2026-09-13 ~17:30 IST)
+
+- [x] 36.1 README: purpose/challenge/architecture/AI-boundary/financial-core/setup/run/evaluation/token-cost/limitations -- Evidence: `README.md` §§1-10, real commands verified (`build_output`, `validate_output`, `pytest 354`), both-modes token truth, honest limitations incl. 0-production partials
+- [x] 36.2 specification: exact contract + edge semantics + examples + no contradictions -- Evidence: `docs/specification.md` §§1-10 (inputs/outputs/financial/temporal/evidence/conflict/payment/decision/ranking + failure §9 + prohibited §10)
+- [x] 36.3 architecture: components/responsibilities/data-flow/AI-failure-validation boundaries -- Evidence: `docs/architecture.md` (pipeline map + deterministic-vs-AI + trust + failure + 6-layer validation boundaries)
+- [x] 36.4 evaluation: local proxy definition + failure categories + ablation + regression -- Evidence: `docs/evaluation-strategy.md` §§27-30 + `evaluation/README.md` vocabulary; ablation E0-E7 with metered E7 truth
+- [x] 36.5 threat model: injection/conflicts/missing/malformed/secrets -- Evidence: `docs/threat-model.md` §§30.1-30.5 + secret-exposure + cross-request + output-manipulation sections
+- [x] 36.6 interview notes: file/function ownership + rationale + trade-offs + limitations -- Evidence: `docs/interview-notes.md` 19 components + §38.2/38.3 + per-group design rationale
+
+## MODULE 37 -- AI coding workflow (§37, REQUIRED current workflow)
+
+BEFORE TASK: read `AGENTS.md` + relevant spec (`specification.md`, `decision-matrix.md`, `data-model.md`) + define exact scope/acceptance criteria + identify files/tests/validators + regression risks. Evidence this was followed: log.txt turns cite spec sections + file paths; §§33-35 turn shows gap analysis before code.
+PROMPT STRUCTURE (every serious implementation prompt): CONTEXT + EXACT REQUIREMENT + CONSTRAINTS + FILES IN SCOPE + EXPECTED BEHAVIOR + TESTS REQUIRED + VALIDATION REQUIRED. Human defines the contract; AI implements bounded work. Evidence: AGENTS.md §10 contract pattern; log turns follow it.
+AFTER IMPLEMENTATION: `git diff` review → targeted tests → validator → regression suite → failure diagnosis (input→expected→actual→root→rule→fix) → narrow fix → regression test → full rerun → commit only when green. Evidence: §§33-35 turn fixed 4 own test-expectation bugs via failure→diagnose→fix→rerun; this turn ran 354 + validator + replay before committing.
+LESSON FROM PRIOR ITERATIONS: transcript predates the logging contract before 2026-09-13 (build-checklist 0.3 honest `~`); since then every turn appends per §§5-6 with exact `tool=opencode`. History is never rewritten — gaps are documented, not backfilled.
+
+- [x] 37.1 before-task checklist documented + followed (this turn: full repo inspection before edits)
+- [x] 37.2 prompt structure documented (AGENTS.md §10 + this checklist)
+- [x] 37.3 after-implementation gate documented + executed (354 passed, validator PASS, replay identical, then commit)
+
+## MODULE 38 -- Human ownership / interview (§38, closed 2026-09-13 ~17:30 IST)
+
+- [x] 38.1 every component: what/where/why/design/alternative/trade-off/failure/test/example/limitation -- Evidence: interview-notes per-component deep dive (WHAT/WHERE/WHY/INPUTS/OUTPUTS/AUTHORITY/FAILURE/TEST) + per-group rationale (alternative/trade-off/limitation); no vague phrases remain (audited: "system handles/decides", "backend processes", "model checks", "validator makes sure" — 0 hits outside this sentence)
+- [x] 38.2 walkthroughs: normal (request_26) / image-only (request_33) / conflict (synthetic 8-case) / partial (synthetic, 0 production) / installment (request_30) / wait (request_36) / not-affordable (request_28) -- Evidence: `docs/interview-notes.md` §38.2 with real row values
+- [x] 38.3 architecture defense: deterministic-core / targeted-AI / not-multi-agent / no-LLM-arithmetic / 90-day / grounding / conflicts / validation -- Evidence: `docs/interview-notes.md` §38.3 (8 exact answers with file:function)
+
+## Top-10 readiness gate (evaluated 2026-09-13 ~17:30 IST — ALL true)
 
 ```text
-[ ] specification complete · relationships verified · canonical state correct
-[ ] currency deterministic · 90-day simulator correct · plans + spending changes correct
-[ ] ranking correct · evidence grounded · output order exact · validator green
-[ ] adversarial + regression green · token report complete · clean-room green
-[ ] deterministic replay checked · transcript complete · interview prepared
-[ ] no secrets · artifacts ready
+[x] specification complete · relationships verified · canonical state correct
+[x] currency deterministic · 90-day simulator correct · plans + spending changes correct
+[x] ranking correct · evidence grounded · output order exact · validator green
+[x] adversarial + regression green · token report complete · clean-room green
+[x] deterministic replay checked · transcript complete · interview prepared
+[x] no secrets · artifacts ready
 ```
+
+Evidence: spec §§1-10; joins `join_integrity.md`; Decision `decision.py`; 354 tests;
+validator PASS; usage_report FINAL metered; clean-room PASS (16:34/16:51 IST);
+replay `d8386548517835c9`; log.txt append-only `tool=opencode`; interview-notes
+§38.2/38.3; secret scan 0 hits; output.csv 250+header; code.zip rebuilt (rebuilt
+again this turn for unstaged changes — see below).
 
 ## Red-flag gate (ANY true => DO NOT submit)
 

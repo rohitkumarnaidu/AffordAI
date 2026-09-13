@@ -131,3 +131,30 @@ input/output/total/avg-per-request tokens, est. total + per-request cost for the
 full-dataset run (per-model + overall). No secrets anywhere.
 Solution: runnable from terminal, reads `dataset/`, deterministic where possible,
 no organizer-only files, no hardcoded labels.
+
+## 9. Failure semantics (what happens when things go wrong)
+
+| Failure | Detection | Behavior |
+|---|---|---|
+| Invalid input (bad schema/type/duplicate PK) | ingestion validators, `_dedupe_by_key`, identity checks | `DatasetError` at load; per-request fallback, never a crash of the batch |
+| Missing evidence (blank amount, no linked image, unreadable file) | `resolve_images_for_event` `file_exists=false` | UNKNOWN marker (`amount_unknown_evidence`, confidence 0); blank is NEVER zero; plan must stay safe without it |
+| Invalid AI output (bad JSON/schema/confidence/ownership) | `_validate_proposal` strict gate + `min_confidence` + `EvidenceRegistry.add` | proposal dropped; deterministic facts still apply |
+| Unavailable model (timeout/429/5xx/no backend) | `call_with_retry` retry taxonomy, `FAILURE_MATRIX` | bounded retries only for transient errors, then `no-backend`/empty fallback; 0 facts added |
+| Impossible plan (floor breach/deadline miss/preference conflict) | `simulate()` + `filter_candidates` | candidate rejected; `not_recommended` fallback when none survive |
+| Per-request exception (any unexpected error) | `pipeline.run` try/except per context | `_decide_safe`: `not_affordable/not_recommended/none/0`, preserving derivable safe/earliest; batch continues |
+| Validation failure (any hard error) | `output/validator.py` + `scripts/validate_output.py` | exit 1 — blocks submission; file still written for inspection |
+
+Missing evidence is NEVER affirmative evidence. Failed validation is NEVER a
+successful decision. Cross-request evidence is NEVER accepted (`check_batch_safe`
++ registry ownership). Deadlines are inclusive (`meets_deadline`: completion <=
+desired date; deadline day counts, day after does not).
+
+## 10. Prohibited behavior (AI must NEVER decide)
+
+Arithmetic, date math, FX conversion, 90-day simulation, safe-amount search,
+earliest-date scan, plan arithmetic/totals, deadline/minimum validation,
+eligibility, ranking/tie-breaks, final numerical decisions, schema enforcement,
+conflict precedence. AI proposes candidate typed facts; deterministic code proves
+safety. Any AI output touching these areas is dropped by validation. Proven by
+`tests/regression/test_sections_15_21.py::test_no_llm_or_clock_in_deterministic_core`
+(`finance/*`, `decision/*` contain zero LLM/clock/random imports).

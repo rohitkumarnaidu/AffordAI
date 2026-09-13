@@ -58,7 +58,10 @@ Artifacts: evaluation/reports/eval_baseline.{json,md}, eval_final.{json,md}.
 - E4 E3 + plan optimization ranking (instrumented: naive-first vs ranked + tie-break units)
 - E5 E4 + grounded explanation (instrumented: 100% consistency audit)
 - E6 E5 + comprehensive validation (instrumented: negative controls)
-- E7 E6 + token optimization accounting (0 calls / 0 tokens at equal accuracy)
+- E7 E6 + token optimization accounting: E0 config 0 calls / 0 tokens at equal
+  accuracy; metered config (`.env` groq, no vendored SDK) 77 calls / 7864
+  estimated input tokens / 0 facts added / decisions byte-identical (replay hash
+  `d8386548517835c9`). Tokens are accounting only and never enter decisions.
 
 Comparison tables (required): Version | Decision Accuracy | Plan Accuracy | Evidence | Invalid Outputs | Tokens | Cost | Runtime  +  Component | Benefit | Cost | New Failures | Decision (KEEP/REMOVE). Results in evaluation/reports/ablation_results.{json,md}. Rule: keep only when measurable value justifies complexity.
 
@@ -70,7 +73,8 @@ Lifecycle: FAILURE -> capture -> expected -> actual -> root cause -> general rul
 
 Threat model treats messages/images as UNTRUSTED EVIDENCE that never overrides system contract, 90-day safety, payment/ranking rules. Prompt injection is data, not instructions. Five categories, 29 cases: financial (7), temporal (5), data (5), evidence (6), payment (6) with exact boundary values.
 
-## Measured Baseline (2026-09-13, deterministic, 250 rows)
+## Measured Baseline (2026-09-13, 250 rows)
 
-- structural 0 errors, numerical 0 violations, plan 0 errors, evidence 0, explanation 250/250, decision 0, fallbacks 0, tokens 0, runtime ~3s, validator PASS, double-run replay identical (production_hash 620bff42124b0c3d), clean-room PASS.
+- structural 0 errors, numerical 0 violations, plan 0 errors, evidence 0, explanation 250/250, decision 0, fallbacks 0, runtime ~2.4s, validator PASS, double-run replay identical (production_hash 620bff42124b0c3d, output sha256 `d8386548517835c9`), clean-room PASS.
+- Two metered truths (LOCAL MEASUREMENT, same decisions): E0 config (`LLM_ENABLED != 1`) 0 calls / 0 tokens / cost 0.0000; metered config (`.env` groq `qwen/qwen3.6-27b` + `groq/compound` vision) 77 calls (66 message + 11 image) / 7864 estimated input tokens / 0 output / cost UNKNOWN (no verified `PRICING`) / 0 facts added (`no-backend` fallback, no SDK vendored). `evaluation/usage_report.md` always reflects the FINAL `build_output.py` run, whichever mode it ran in.
 - Sample calibration (25 rows, NOT eval labels): status 0.44 / method 0.48 / earliest-exact 0.36 -- used for shape diagnostics only (exposed Tier-1 earliest rule, pipe-split, payroll refs).

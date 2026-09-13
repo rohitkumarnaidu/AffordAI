@@ -200,9 +200,9 @@ Files: `src/affordai/pipeline.py` orchestrates; `ingestion/` resolves; `evidence
 
 * **WHAT:** Every model call captures `ModelCallRecord` (provider/model/purpose/input/output tokens/success/retry/fallback) via `llm_adapter.ModelCallRecord`; `UsageReport` aggregates calls/in/out/total/avg/cost per-request + per-model breakdown; `PRICING` dict separate (empty -> cost 0 for 0 calls, UNKNOWN when calls>0 but pricing unverified)
 * **WHERE:** `src/affordai/evaluation/usage.py:UsageReport` `PRICING`, `to_markdown`, `src/affordai/evidence/llm_adapter.py:ModelCallRecord` `needs_llm_for_messages/image` `check_batch_safe` `minimize_message_context`, `src/affordai/pipeline.py:_collect_evidence` selective calls + `run` per_model aggregation, `scripts/build_output.py` persists FINAL run to `evaluation/usage_report.md`
-* **WHY:** Deterministic E0 runs with 0 calls/0 tokens/0 cost; when enabled, selective triggers + minimized contexts + batch safety keep cost minimal without correctness loss
-* **INPUTS:** `ctx.messages`/`images` + `LlmConfig` (env `LLM_ENABLED !=1` -> disabled)
-* **OUTPUTS:** `evaluation/usage_report.md` (0 calls/0 tokens 2.6s, no prompts/secrets)
+* **WHY:** E0 config runs with 0 calls/0 tokens/0 cost; metered config (`.env` groq) records 77 `no-backend` records (7864 est. input tokens, 0 facts added, decisions byte-identical); selective triggers + minimized contexts + batch safety keep cost minimal without correctness loss
+* **INPUTS:** `ctx.messages`/`images` + `LlmConfig` (env `LLM_ENABLED !=1` -> disabled; `=1` + API key -> enabled-metered; no vendored SDK -> `no-backend` fallback with estimated token records)
+* **OUTPUTS:** `evaluation/usage_report.md` (FINAL run: 77 calls / 7864 est. in / 0 out / cost UNKNOWN / per-model groq 66+11 / 2.4s, no prompts/secrets; E0 rerun: 0/0/0.0000) — the report always reflects the FINAL `build_output.py` run, whichever mode it ran in
 * **AUTHORITY:** `check_batch_safe` enforces one request/user per call; `redact` before storage; financial decisions never depend on tokens
 * **FAILURE MODES:** No division-by-zero (avg handles 0), no fake 0 cost when pricing unknown (returns UNKNOWN), deterministic 0-call valid
 * **TEST COVERAGE:** `evaluation/ablation.py:instrument_e7_tokens` 0 calls, `tests/security/test_sec31_32.py` batch safety, `pipeline` records 0 in E0
@@ -230,3 +230,82 @@ Files: `src/affordai/pipeline.py` orchestrates; `ingestion/` resolves; `evidence
 * **Image-only (blank amount):** `event amount None` -> `resolve_images_for_event` finds linked PNG -> vision disabled -> `amount_unknown_evidence` UNKNOWN (never 0) -> plan must stay safe without it; E2 linkage clears 11 ev errors
 * **Conflict (cancel vs amend same event):** `amend_amount 50` + `cancel e-2` -> `resolve` cancel rank 0 wins -> `cancelled_event_ids` includes e-2 -> `build_flows` drops event
 * **Installment (exactness):** `opt_7` 3 payments `first 2025-01-10 freq 30 fee 200 total 3200` -> `expand_schedule` legs exact -> `Candidate` `option_id opt_7 total 3200` -> `validate_plans` re-derives totals incl fees -> ranking 6-tuple picks lowest `total` then `option_id`
+
+## §38.2 Walkthroughs (all values LOCAL MEASUREMENT from `output.csv` + `dataset/official`, 2026-09-13)
+
+Conventions: `simulate` = `finance/forecast.py:simulate`; floor = `closing >= minimum` every day of `[request_date, +89d]`; rank = `optimizer.rank_key` 6-tuple. Synthetic cases are labelled as such (engine proven by regression tests, 0 production occurrences).
+
+### A. NORMAL — request_26 → affordable_now / full_payment
+INPUT: `user_26`, `request_date 2025-08-03`, requested `15656000 IDR`, deadline `2025-10-07`, `allows_partial=false`. Profile: home `IDR`, balance covers request + floor.
+→ DATA JOIN: `build_contexts` indexes user_26 → profile/events/options; `original_index` stamped.
+→ EVIDENCE: deterministic `interpret` over its messages (no override facts).
+→ STATE: `state.build` opening/minimum/requested + `timeline.build_flows` daily net.
+→ FORECAST: `max_safe_today` = 15656000 (== requested); `earliest_full_date` = 2025-08-03.
+→ CANDIDATES: `full` (2025-08-03:15656000) simulates ok; eligibility passes (user accepts full).
+→ RANK → DECISION: `full` wins → `affordable_now/full_payment`, safe 15656000, earliest = request_date, changes none.
+→ VALIDATE: structural + plan + consistency PASS.
+OUTPUT ROW: `request_26,15656000,affordable_now,full_payment,2025-08-03:15656000,2025-08-03,none,"Requested 15656000 IDR on 2025-08-03: ..."`.
+
+### B. IMAGE-ONLY AMOUNT — request_33 → blank stays UNKNOWN → not_affordable
+INPUT: eval request with a blank-`amount` financial event linked from `images.csv` (`image_06` → request_33's blank event).
+→ LINKAGE: `resolve_images_for_event(event_id, images, media_dir)` finds the PNG, `file_exists=true`.
+→ EXTRACTION: no vendored vision backend → `propose_facts("image_amount",…)` returns `no-backend`, 0 facts, estimated-token record only.
+→ UNKNOWN, NEVER ZERO: `amount_unknown_evidence` (confidence 0) recorded; `money.parse_amount` blank→None path; event contributes no cash flow.
+→ DETERMINISTIC FINANCE: forecast + candidates run without the unknown amount; no candidate completes safely.
+→ DECISION: `not_affordable/not_recommended`, safe 0, plan `none`, earliest empty.
+WHY NOT ZERO: zero would fabricate a free expense (unsafe direction) or fake income; UNKNOWN forces the plan to prove safety without the fact. Proven by `test_s29_image_extraction_blank_never_zero` + 16↔16 bijection test.
+
+### C. CONFLICTING EVIDENCE — synthetic cancel-vs-amend (engine: `test_p0_hardening.py:12-80`, 8 cases)
+INPUT (synthetic): `amend_amount 50` + `cancel e-2` for the same event, different `sent_at`.
+→ `interpret` emits two typed facts → `conflict_resolver.resolve` 3-pass stable sort: explicit cancel (rank 0) beats amend (rank 2); newer-wins and settled-over-estimate apply only within equal explicit rank.
+→ `cancelled_event_ids` ∋ e-2 → `build_flows` drops the event → re-simulate → rank → decide.
+LLM never reorders (`_method_rank` puts LLM last). Adversarial proof: `test_adv3031/3032` newer-wins + cancel>amend.
+
+### D. PARTIAL PAYMENT — synthetic (0 production occurrences in the 250 rows; LOCAL MEASUREMENT of engine)
+Gates in `payment_plans.generate` (all five required): request `allows_partial` AND user accepts `partial_payment` AND `0 < safe < requested` AND `earliest <= desired_completion_date` AND exact 2-leg shape `request_date:safe | earliest:(requested − safe)` summing to requested.
+→ `filter_candidates` eligibility → `simulate` safety → rank → `rules.derive` maps partial ⇒ `affordable_with_plan` (never any other status).
+Proven by `test_partial_exact_two_payment_shape` + `test_partial_gated_off` (3 gate rejections). No installment option match needed (unlike installments).
+
+### E. INSTALLMENT — request_30 → affordable_with_plan / installments
+INPUT: `user_30`, USD, requested `775.2`, `request_date 2026-04-06`, deadline `2026-06-06`, `allows_partial=false`, considers `partial_payment|installments`, min 900 / balance 3752.72. No messages (pure deterministic path).
+→ STATE/FORECAST: safe today 738.16 (< requested, so full fails); single-payment scan never safe → earliest empty.
+→ CANDIDATES: `installments` via `expand_schedule` exact match (3 legs `2026-04-06:268.74|2026-05-06:268.74|2026-06-05:268.74`, total 806.22 incl. fee); partial gated off (`allows_partial=false`); wait ineligible in effect (earliest empty).
+→ SAFETY: each leg re-simulated, floor holds, completes 2026-06-05 ≤ deadline; term/preference gate passes.
+→ DECISION: `affordable_with_plan/installments`, safe 738.16, earliest empty (capacity ≠ schedule completion — earliest measures ONE payment, installments complete via schedule).
+OUTPUT ROW: `request_30,738.16,affordable_with_plan,installments,2026-04-06:268.74|2026-05-06:268.74|2026-06-05:268.74,,none,"..."`.
+
+### F. WAIT — request_36 → affordable_later / wait
+INPUT: `user_36`, USD, requested `3954`, `request_date 2026-07-03`, deadline `2026-09-15`, considers `full_payment` only. Evidence: `message_26` (2026-06-22, payroll: salary increase to USD 2988 from 2026-07-15).
+→ EVIDENCE: deterministic `interpret` + `message_income.confirmed_series` (employer + confirm semantics + salary keywords; payroll ref `EMP-0026` alone never parses as an amount).
+→ FORECAST: full unsafe today (safe 789.44 < 3954); forward scan first safe single-payment date = 2026-08-15 (future salary in flows).
+→ CANDIDATES: `wait` = single future payment `2026-08-15:3954`; eligible (future-safe + user accepts full); completes ≤ deadline.
+→ DECISION: `affordable_later/wait`, safe 789.44 (BEFORE changes, per contract), earliest 2026-08-15 > request_date.
+
+### G. NOT AFFORDABLE — request_28 → not_affordable / not_recommended
+INPUT: `user_28`, EUR, requested `1302.4`, `request_date 2024-06-07`, deadline `2024-08-15`, considers `full_payment`, min 1100 / balance 1789.4.
+→ Every candidate rejected: full unsafe (safe 0), no eligible installment/partial path, wait impossible (earliest empty — never safe in window).
+→ FALLBACK: `not_recommended`, plan `none`, changes `none`, earliest empty, safe 0 (`0 <= safe <= requested` holds).
+→ Validator consistency: `not_affordable ⇔ not_recommended ⇔ plan none` PASS.
+OUTPUT ROW: `request_28,0,not_affordable,not_recommended,none,,, "..."`.
+
+## §38.3 Architecture defense (exact answers)
+
+**Why deterministic core?** Financial arithmetic, dates, FX, simulation, validation, ranking require reproducible correctness: same input → same output (replay hash `d8386548517835c9` byte-identical). An LLM cannot guarantee `closing >= minimum` on all 90 days. Authority: `finance/*`, `decision/*`, `output/validator` (grep-proven LLM/clock-free).
+**Why targeted AI?** Messages (`messages.csv`, multilingual, 215 rows) and receipt images (16 PNGs) carry semantics regex cannot fully cover (amend/cancel/confirm intent, pictured amounts). AI is used ONLY there, emitting typed facts with confidence.
+**Why not multi-agent?** One request → one deterministic path has no decomposable scoring subtask: evidence interpretation feeds a single ledger; extra agents add nondeterminism, token cost, and failure surface with no measured accuracy win (ablation rule: keep only on measured wins; E0→E2 deltas documented, E3–E7 instrumented).
+**Why no LLM arithmetic?** Safety-critical and exact: Decimal floor search, FX direction, fee-inclusive totals. LLM output is unvalidated text until `_validate_proposal` + registry + re-simulation prove it. The pipeline drops any non-conforming proposal.
+**How 90-day safety works:** `temporal.forecast_end = request_date + 89` (inclusive 90 days); `timeline.build_flows` maps every flow to settlement dates; `forecast.simulate(state, payments, changes)` walks the daily ledger and returns `ok=False` on the first day `closing < minimum` or completion past deadline. `max_safe_today` binary-searches the largest today-payment keeping `ok=True`; `earliest_full_date` scans forward for the first single-payment `ok=True` day.
+**How evidence is grounded:** source row → `interpret`/`resolve_images_for_event`/`propose_facts` → `Evidence` with full provenance (`source_type/source_id/request_id/user_id/event_id/message_id/image_id/raw/normalized/confidence/method/sent_at`) → `EvidenceRegistry.add` (IDs exist + ownership + confidence range) → `conflict_resolver` precedence → deterministic use. Unsupported evidence never enters decisions (rejections recorded).
+**How conflicts are resolved:** fixed order — (1) explicit cancel/settle/amend (2) newer same-source `sent_at` descending (3) settled over estimate (4) safer interpretation + deterministic-over-LLM method rank + lexical tiebreak. Implemented as 3-pass stable sort in `conflict_resolver.resolve`; LLM cannot reorder.
+**How validation protects output:** six layers (spec §9 / architecture doc): input → evidence → financial invariant → plan → decision → output gate. `scripts/validate_output.py` exits 1 on any hard error, blocking submission; 13/13 mutation controls rejected; full 250-row run PASS.
+
+## Design rationale per component group (alternative / trade-off / limitation)
+
+- **Ingestion + joins (`ingestion/*`, `pipeline.build_contexts`):** alternative = pandas-merge one-liners; rejected because silent row duplication breaks row identity (prior Orchestrate failure). Trade-off: more code for explicit `original_index` preservation + `JoinIntegrityIssue` audit. Limitation: dual-layout resolver covers `dataset/` vs `dataset/official/` only.
+- **Message interpreter (regex-first):** alternative = LLM-first extraction; rejected (cost × 215 messages, nondeterminism). Trade-off: regex misses novel phrasing → covered by selective `needs_llm_for_messages` + `propose_facts`. Limitation: 20-char heuristic + salary-keyword list are tuned, not proven complete (INFERENCE).
+- **Image path (linkage-first):** alternative = run vision on all 16 images blindly; rejected (cost, no backend vendored). Trade-off: UNKNOWN-safe blanks reduce recall of true amounts. Limitation: without a vision backend, pictured amounts never resolve (documented, never zeroed).
+- **Conflict resolver (fixed precedence):** alternative = recency-only or LLM-judged; rejected (cancel must beat newer amend). Trade-off: rigid order may mishandle genuinely ambiguous cases → safest interpretation rule + fallback. Limitation: 4-rule order is Tier-1-derived, not officially published (INFERENCE, documented).
+- **Forecast (daily loop + binary search):** alternative = closed-form balance equation; rejected (recurrence clamping + conditional flows resist closed form). Trade-off: ~8ms/req compute (84% in `decide`, measured) for exactness. Limitation: 31d/month installment approximation + recurrence thresholds UNPROVEN.
+- **Ranking (6-tuple key):** alternative = weighted scoring; rejected (ties unexplainable, irreproducible). Trade-off: lexicographic order can prefer a slightly costlier on-time plan — intended (deadline first per contract).
+- **Explanation (template over Decision):** alternative = free-form LLM summary; rejected (hallucinated amounts/dates). Trade-off: stilted prose for grounding (`validate` 250/250). Limitation: templates don't localize multilingual input.
+- **Token accounting (`usage.py` + records):** alternative = provider dashboard only; rejected (must attribute per-request/per-model locally). Trade-off: local chars/4 estimates are coarse → labelled `estimated`, provider values win when present. Limitation: cost UNKNOWN without verified `PRICING`.

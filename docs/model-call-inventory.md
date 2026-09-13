@@ -3,8 +3,13 @@
 > Every model call MUST have a contract. This file mirrors `src/affordai/evidence/llm_adapter.py:MODEL_CALLS`
 > (code is authoritative). Any drift between this doc and `MODEL_CALLS` is a bug.
 
-No provider SDK is vendored in E0; both calls are gated behind `LLM_ENABLED=1` +
-valid `API_KEY`. Deterministic E0 runs with 0 calls, 0 tokens, 0 cost.
+No provider SDK is vendored; both calls are gated behind `LLM_ENABLED=1` +
+valid `API_KEY` (auto-loaded from repo-root `.env` via `_try_load_dotenv`,
+never overriding exported env, never logging values). Disabled config runs with
+0 calls, 0 tokens, 0 cost. Enabled config without a vendored backend records
+`no-backend` `ModelCallRecord`s (estimated input tokens, LOCAL MEASUREMENT) and
+adds 0 facts — decisions stay byte-identical (metered FINAL run 2026-09-13:
+77 calls / 7864 est. input tokens / cost UNKNOWN, replay hash unchanged).
 
 ## Calls
 
