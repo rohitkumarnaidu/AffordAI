@@ -150,18 +150,18 @@ Referenced by `AGENTS.md` §§27-27b, 30. Update as work lands.
 - [x] 32.2 stable ordering/ranking/math/serialization -- Evidence: `pipeline.py` sort by original_index, `optimizer.rank_key` deterministic 6-tuple, `money.py` Decimal quantization, `serializer.py` decisions_to_rows ordering
 
 ## MODULE 33 -- Documentation
-- [x] 33.1/33.2 README + 7 tech docs + interview notes skeleton (+ this checklist)
+- [x] 33.1/33.2 README + 7 tech docs + interview notes complete (+ this checklist) -- Evidence: `docs/interview-notes.md` 19 components each WHAT/WHERE/WHY/INPUTS/OUTPUTS/AUTHORITY/FAILURE MODES/TEST COVERAGE + 5 worked examples, `docs/evaluation-strategy.md` 27.1-27.4 + 28-30, `docs/threat-model.md` 30.1-30.5 29 cases
 
 ## MODULE 34 -- Interview (`docs/interview-notes.md`)
-- [ ] 34.1 WHAT/WHERE/WHY/alternative/trade-off/failure/test/example/limitation per component
-- [ ] 34.2 deterministic-core + AI-boundary + fallback rationale, trade-offs, limitations
-- [ ] 34.3 worked examples: normal, ambiguous, image-only, conflict, installment
+- [x] 34.1 WHAT/WHERE/WHY/alternative/trade-off/failure/test/example/limitation per component -- Evidence: `docs/interview-notes.md` per-component deep dive (19 components) + system walkthrough
+- [x] 34.2 deterministic-core + AI-boundary + fallback rationale, trade-offs, limitations -- Evidence: Q&A Authority & Fallback section, deterministic core authority proof via grep, fallback tested
+- [x] 34.3 worked examples: normal, ambiguous, image-only, conflict, installment -- Evidence: 5 worked examples section with real request paths
 
 ## MODULE 35 -- Final submission
-- [x] 35.1 `output.csv`: 250+header, order, schema, validator green -- Evidence: `output.csv` 250 rows 2026-09-13 16:34 IST, `validate_output.py PASS`, header 8 cols exact
-- [x] 35.2 `code.zip`: runnable, README, evaluation files, no secrets, packaging tested -- Evidence: prior `code.zip` 93 entries; rebuild pending after this session (no secrets in src/evaluation/output)
-- [x] 35.3 usage report complete (provider/model/calls/tokens/costs) -- Evidence: `evaluation/usage_report.md` 0/0/0/0.0000, per-model n/a deterministic, 250 rows
-- [ ] 35.4 `log.txt` complete, append-only, identities exact, redacted -- pending final session append
+- [x] 35.1 `output.csv`: 250+header, order, schema, validator green -- Evidence: `output.csv` 250 rows 2026-09-13 16:51 IST, `validate_output.py PASS`, header 8 cols exact, replay d8386548517835c9
+- [x] 35.2 `code.zip`: runnable, README, evaluation files, no secrets, packaging tested -- Evidence: `code.zip` 123 entries 620ab03c 433KB, no .env/__pycache__/log.txt, includes new evaluation + security + trace; rebuilt 2026-09-13 16:55 IST
+- [x] 35.3 usage report complete (provider/model/calls/tokens/costs) -- Evidence: `evaluation/usage_report.md` 0/0/0/0.0000, per-model n/a deterministic, 250 rows, 2.6s, token source estimated
+- [x] 35.4 `log.txt` complete, append-only, identities exact, redacted -- Evidence: `log.txt` 3535 lines pre-final + new final closure entry, tool=opencode exact, redacted, append-only
 
 ---
 
