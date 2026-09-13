@@ -41,7 +41,7 @@ Results → `evaluation/reports/`. Token/cost of FINAL run → `evaluation/usage
 
 ## Measured E0 baseline (2026-09-13, deterministic, 25 sample rows)
 
-status 0.44 / method 0.56 / earliest-exact 0.36. Samples are illustrative
+status 0.44 / method 0.48 / earliest-exact 0.36. Samples are illustrative
 format examples, NOT eval labels — used for shape/calibration diagnostics
 only (this run exposed and fixed: Tier-1 earliest rule, pipe-split
 preferences, payroll-ref amount poisoning, salary-amount linkage).

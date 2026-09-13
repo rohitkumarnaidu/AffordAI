@@ -44,7 +44,7 @@ deterministic pipeline in `src/affordai/pipeline.py`, writes root `output.csv`).
 ## Evaluation / cost
 
 Local proxy on the 25 sample rows (E0 deterministic, NOT official score):
-status 0.44 / method 0.56 / earliest-exact 0.36. Samples are illustrative
+status 0.44 / method 0.48 / earliest-exact 0.36. Samples are illustrative
 format examples, not eval labels.
 Token/cost accounting for the final full-dataset run lives in `evaluation/usage_report.md`
 (250 rows, ~2.4s wall, 0 model calls, deterministic, byte-identical replay).

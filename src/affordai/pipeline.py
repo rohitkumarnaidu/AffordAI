@@ -14,7 +14,7 @@ from affordai.decision import rules as decision_rules
 from affordai.decision.decision import Decision
 from affordai.decision.eligibility import filter_candidates
 from affordai.evidence import conflict_resolver
-from affordai.evidence.evidence_registry import Evidence, EvidenceRegistry
+from affordai.evidence.evidence_registry import EvidenceRegistry
 from affordai.evidence.image_interpreter import (
     amount_unknown_evidence,
     resolve_images_for_event,
@@ -25,9 +25,8 @@ from affordai.evidence.llm_adapter import (
     propose_facts,
 )
 from affordai.evidence.message_interpreter import interpret as interpret_message
-from affordai.finance import forecast as forecast_mod
 from affordai.finance import optimizer, payment_plans, spending_changes
-from affordai.finance.currency import RateTable, load_rates
+from affordai.finance.currency import load_rates
 from affordai.finance.forecast import earliest_full_date, max_safe_today, simulate
 from affordai.finance.money import format_amount, parse_amount
 from affordai.finance.state import build as build_state
@@ -144,7 +143,7 @@ def _collect_evidence(
     """Deterministic evidence + optional LLM proposals (validated or dropped)."""
     registry = EvidenceRegistry()
     used: list[str] = []
-    for message in sorted(ctx.messages, key=lambda m: (m["sent_at"], m["message_id"])):
+    for message in sorted(ctx.messages, key=lambda m: (str(m["sent_at"]), m["message_id"])):
         for fact in interpret_message(message):
             if fact.kind == "amend_amount" and not fact.event_id:
                 _link_salary_fact(ctx, message, fact)
@@ -238,7 +237,7 @@ def decide_context(
     from affordai.evidence.message_income import confirmed_series
 
     extra_confirmed: list[tuple] = []
-    for message in sorted(ctx.messages, key=lambda m: (m["sent_at"], m["message_id"])):
+    for message in sorted(ctx.messages, key=lambda m: (str(m["sent_at"]), m["message_id"])):
         try:
             series, _income_notes = confirmed_series(ctx, message, home)
         except Exception:

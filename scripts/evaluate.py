@@ -30,6 +30,23 @@ def main() -> int:
     metrics["n_sample"] = len(decisions)
     print(json.dumps(metrics, indent=1))
 
+    from affordai.evaluation import regression as regression_mod
+
+    import os
+
+    os.makedirs("evaluation/local", exist_ok=True)  # gitignored scratch space
+    snap_path = "evaluation/local/last_snapshot.json"
+    new_snap = regression_mod.snapshot(decisions)
+    try:
+        with open(snap_path, encoding="utf-8") as fh:
+            old_snap = json.load(fh)
+        drift = regression_mod.diff(old_snap, new_snap)
+        print(f"regression drift vs {snap_path}: {len(drift)} rows: {drift[:10]}")
+    except OSError:
+        print(f"no prior snapshot at {snap_path}; writing baseline")
+    regression_mod.save(decisions, snap_path)
+    print(f"snapshot saved -> {snap_path}")
+
     full = run_dataset(args.dataset)
     print(f"full run: {full['n_requests']} rows in {full['runtime_s']:.1f}s")
     return 0
