@@ -64,7 +64,7 @@ Referenced by `AGENTS.md` §§27–27b, 30. Update as work lands.
 
 ## MODULE 12 — 90-day forecast (`finance/forecast.py`)
 - [x] 12.1 daily ledger: opening, inflows, essentials, recurring, existing + candidate payments, closing — Evidence: `forecast.py:simulate` daily loop, `timeline.build_flows` inclusion rules, 4-agent audit 2026-09-13, `tests/regression/test_sections_15_21.py` (dynamic states)
-- [x] 12.2 invariant `closing >= minimum` every day; no double-counting; deterministic — Evidence: `forecast.py` early-return on breach, `state.py` double-count guard, `test_simulate_floor_boundary`, `test_forecast_floor_invariant_across_window`, full output.csv byte-identical after change (hash `2afdb4aa…`), double-run identical
+- [x] 12.2 invariant `closing >= minimum` every day; no double-counting; deterministic — Evidence: `forecast.py` early-return on breach, `state.py` double-count guard, `test_simulate_floor_boundary`, `test_forecast_floor_invariant_across_window`, full output.csv 250 rows after change (sha256 `801c68d7…` 2026-09-13 16:04 IST), double-run identical
 
 ## MODULE 13 — Payment-plan engine (`finance/payment_plans.py`)
 - [x] 13.1 candidates: full / partial / installments / wait / spending-change variants / not_recommended — Evidence: `payment_plans.generate` + `spending_changes.find_variants` + pipeline `None→not_recommended`; `test_partial_exact_two_payment_shape`, `test_installments_exact_option_match`, `test_wait_shape_conditions`
@@ -121,7 +121,7 @@ Referenced by `AGENTS.md` §§27–27b, 30. Update as work lands.
 
 ## MODULE 26 — Regression (`tests/regression/`)
 - [x] 26.1 fixtures: row-order, evidence mismatch, cancel/amend, currency, date, plan, preference — Evidence: `tests/regression/test_guards.py`, `test_p0_hardening.py:12-230 (12 cases)`, `test_metamorphic.py`
-- [x] 26.2 gate: `pytest` + validator must pass before commits — Evidence: `88 passed`, `validate_output.py PASS`, `clean_room_run.py PASS` (2026-09-13 15:00 UTC)
+- [x] 26.2 gate: `pytest` + validator must pass before commits — Evidence: `197 passed` (`pytest tests -q` 2026-09-13 16:04 IST, HEAD 852ca3e), `validate_output.py PASS`, `clean_room_run.py PASS`
 
 ## MODULE 27 — Observability (`observability/tracing.py`)
 - [ ] 27.1 per-request trace: request→evidence→facts→state→forecast→candidates→rejected→selected→decision→output
@@ -236,3 +236,24 @@ All `[x]` — see `data_inventory.md` §§2–8 and `join_integrity.md` §§1–
 A1 FX latest-on-before exact pair, installment `months*31` approximation, 90-day inclusive `+89`, recurrence thresholds, `streaming`/`gym` dual willingness, prize lure handling — all in `docs/specification.md §7` with `[UNPROVEN]` tag.
 
 **Final gate for Phase 4+5: GREEN — contract verified, dataset inventory complete, joins verified, cardinality ordered, unknowns documented, dataset unchanged, tests pass, evidence reproducible.**
+
+---
+
+## REMEDIATION 2026-09-13 16:04 IST (zero-trust re-verification, HEAD 852ca3e)
+
+> Requirement → Implementation → Test → Runtime evidence → Final status.
+> Boxes above unchanged except stale numbers corrected (12.2 hash, 26.2 count).
+> No tests weakened, no regression removed, no safety behavior reverted.
+
+- forecast (ZTA-001): Requirement 90-day floor + bounded `0<=safe<=requested` → Implementation `forecast.py:max_safe_today` ROUND_FLOOR hi + base-breach early-return + clamp + fail-closed post-conditions; `simulate` floor-only contract → Test `test_safe_*` (3), `test_earliest_*` (3), `test_m3_balance_monotonicity`, `test_e2e_sample_rows_validate`, `test_m1_row_order_invariance` → Runtime `pytest tests -q` 197 passed 2026-09-13 16:04 IST; HEAD-forecast and working-forecast both green on 24-target subset (no 6-failure reproduction; rewrite reconciled as correct fix for HALF_EVEN ceiling bug, not a regression) → Final: PASS
+- M1 row-order: `pipeline.build_contexts` deterministic sort + isolation → `test_m1_row_order_invariance` PASS → Final: PASS
+- M3 monotonicity: single-payment monotonicity lemma (`forecast.py` docstring) + binary search exact → `test_m3_balance_monotonicity` PASS → Final: PASS
+- E2E: sample 25 rows → validated CSV → `test_e2e_sample_rows_validate` PASS; full 250 rows validator PASS → Final: PASS
+- sections 15–21: `tests/regression/test_sections_15_21.py` 21 tests (safe/earliest/partial/installments/wait/spending/eligibility/optimizer/rules/LLM-boundary/determinism) all PASS → Final: PASS
+- packaging (ZTA-002): `code.zip` 93 entries, sha256 `7561107d…`, contains src/README/docs/evaluation/output.csv; forbidden scan: no `.env`, no `__pycache__`, no secrets; `output.csv` inside matches working `801c68d7…` (normalized LF match for `forecast.py`); committed in 103226f (was dirty before, now clean) → Final: CLEAN
+- replay: `build_output.py` twice → `replay_a == replay_b == output.csv` sha256 `801c68d7985b79ef15f3f4d46d02a79e37400dc758d266cfce7adfc7d3a4a936`; mix affordable_now 33 / not_affordable 182 / with_plan 29 / later 6 → Final: IDENTICAL
+- clean-room: `scripts/clean_room_run.py` fresh subprocess scrubbed env temp dir → CLEAN-ROOM PASS → Final: PASS
+- secret scan: `src/scripts/tests/evaluation` + `code.zip` 0 hits; `.env.example` placeholders only; `.gitignore` covers `.env`/`log.txt` → Final: CLEAN
+- ZTA-004 injection: numeric `amend_amount` proposable (`salary … 99999999` → candidate) but contained via registry ownership (`EvidenceRegistry.add` rejects cross-request/unknown IDs), `conflict_resolver` cancel>amend + newer-wins, `parse_amount>0` gate, unlinked (event_id None) dropped in `amended_amounts`, floor `simulate` + independent `validator` re-derivation, deterministic core has 0 LLM/clock tokens (`test_no_llm_or_clock_in_deterministic_core` PASS) → Final: CONTAINED, boundary preserved
+- ZTA-003 log: history preserved (no rewrite/reorder/fabrication); this session appended per §§5–6 → Final: GENUINE + APPEND-ONLY
+- ZTA-005 upstream: `origin`=AffordAI, `upstream`=reference fetch-only, no merge (`git log --merges` empty, `git status -sb` clean) → Final: NO ISSUE
