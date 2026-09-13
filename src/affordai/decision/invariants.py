@@ -21,8 +21,12 @@ def check_status_method_consistency(status: str, method: str) -> bool:
 
 
 def check_earliest_consistency(status: str, request_date: str, earliest: str) -> bool:
+    # Tier-1 rule (problem_statement): earliest measures capacity
+    # independently of preferences/deadline; empty ONLY when full payment
+    # never becomes safe in the forecast. not_affordable MAY carry a real
+    # earliest (capacity exists but no eligible plan completes by deadline).
     if status == "affordable_now":
         return earliest == request_date
-    if status == "not_affordable":
-        return earliest == ""
-    return True
+    if earliest == "":
+        return True
+    return request_date <= earliest
