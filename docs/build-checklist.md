@@ -1,0 +1,183 @@
+# Build Checklist — Modules 0–35 (completion gate)
+
+Status per item: `[ ]` not started · `[~]` partial · `[x]` complete · `[!]` blocked/risky · `[-]` n/a.
+Referenced by `AGENTS.md` §§27–27b, 30. Update as work lands.
+
+## MODULE 0 — Repository & governance
+- [x] 0.1 repo init, `origin`=AffordAI, `upstream`=official-ref, branch/worktree known
+- [x] 0.2 `.gitignore` (.env, log.txt, local dirs), no secrets, meaningful commits, upstream never merged
+- [~] 0.3 transcript: root `log.txt`, append-only, session-start + per-turn, exact `tool=`, redaction, shared log
+  (logging began 2026-09-13; earlier turns predate the contract — noted in log)
+
+## MODULE 1 — Specification
+- [x] 1.1 core spec (objective, I/O, enums, financial/temporal/evidence/conflict/preference rules, prohibitions)
+- [x] 1.2 decision matrix (states, methods, partial/installment/spending/deadline/tie-break rules)
+- [~] 1.3 edge semantics (missing values, duplicates, cancels, amendments, settlement, unresolved conflicts,
+  missing evidence/FX — FX fallback A1 set; rest pending engine)
+
+## MODULE 2 — Data ingestion (`src/affordai/ingestion/`)
+- [ ] 2.1 loaders: requests, profiles, events, payment options, FX, messages, images
+- [ ] 2.2 schema validation: columns, types, nulls, unexpected values, row counts
+- [ ] 2.3 identity: `original_index`, `request_id`, `user_id`; no cross-request/user leaks
+
+## MODULE 3 — Relationship / join engine
+- [ ] 3.1 joins: user→profile, request→user/options/messages, event→image
+- [ ] 3.2 lifecycle: `linked_event_id`, `related_event_id`, amendments, duplicate detection
+- [ ] 3.3 safety: missing refs, ownership, multiplicity, no duplicate joins
+
+## MODULE 4 — Canonical request context (`pipeline.py: RequestContext`)
+- [ ] 4.1 object carries index/ids/request/profile/events/messages/images/options/evidence
+- [ ] 4.2 immutable identity, deterministic ordering
+
+## MODULE 5 — Evidence system (`evidence/evidence_registry.py`)
+- [ ] 5.1 provenance fields (source type/id, request/user/event/message/image, raw/normalized, method, confidence)
+- [ ] 5.2 validation: IDs exist, correct owner, supports claim, no fabrication
+
+## MODULE 6 — Message intelligence
+- [ ] 6.1 detect: cancel/settle/amend/delay/confirm/amount-change/date-change/preference
+- [ ] 6.2 safety: injection resistance, irrelevant/malformed handling, provenance
+- [ ] 6.3 AI: bounded prompt, structured schema, validation, fallback, token tracking
+
+## MODULE 7 — Image intelligence
+- [ ] 7.1 resolution: id mapping, file exists, linkage, relevance filter
+- [ ] 7.2 extraction: amount, currency, context, confidence, provenance
+- [ ] 7.3 failures: blank/missing/unreadable/irrelevant/malicious-image handling (blank≠zero, 16↔16 verified)
+
+## MODULE 8 — Conflict resolution (`evidence/conflict_resolver.py`)
+- [ ] 8.1 precedence: cancel/settle/amend → newer same-source → settled → safer; deterministic; AI can't override
+- [ ] 8.2 regression fixtures
+
+## MODULE 9 — Currency engine (`finance/currency.py`)
+- [ ] 9.1 same/foreign conversion, dated rate, direction, home-currency output (A1: latest row ≤ settlement)
+- [ ] 9.2 failures: missing rate/date-mismatch/unsupported pair/invalid amount (fail-closed + log)
+
+## MODULE 10 — Temporal engine (`finance/timeline.py`)
+- [ ] 10.1 request/event/settlement/income/recurring/payment/completion dates, 90-day horizon
+- [ ] 10.2 edges: same-day, boundary, deadline-day, 90-day boundary, recurrence anomalies
+
+## MODULE 11 — Financial state engine (`finance/state.py`)
+- [ ] 11.1 balance, minimum, essentials, flexible, recurring income, obligations, valid settled events
+- [ ] 11.2 pending debit (reserve) vs pending credit (ignore), failed/cancelled/duplicate/unrealized excluded,
+  confirmed salary on settlement date only
+
+## MODULE 12 — 90-day forecast (`finance/forecast.py`)
+- [ ] 12.1 daily ledger: opening, inflows, essentials, recurring, existing + candidate payments, closing
+- [ ] 12.2 invariant `closing >= minimum` every day; no double-counting; deterministic
+
+## MODULE 13 — Payment-plan engine (`finance/payment_plans.py`)
+- [ ] 13.1 candidates: full / partial / installments / wait / spending-change variants / not_recommended
+- [ ] 13.2 each: safety → deadline → preference → ranking
+
+## MODULE 14 — Amount safe to pay
+- [ ] 14.1 max safe today, before optional changes, bounded, deterministic search
+- [ ] 14.2 boundaries: 0, full, exact edge, ±edge
+
+## MODULE 15 — Earliest full-payment date
+- [ ] 15.1 scan from `request_date`; first safe single-payment date; empty if never; preference-independent
+- [ ] 15.2 safety + deadline validation
+
+## MODULE 16 — Partial payment
+- [ ] 16.1 eligible: allows-partial, user accepts, `0 < safe < requested`, `earliest <= deadline`
+- [ ] 16.2 exactly 2 payments (`safe` + remainder = requested), safe, on time
+
+## MODULE 17 — Installments
+- [ ] 17.1 exact match: option id, count, dates, amounts, fees
+- [ ] 17.2 user accepts installments, month-limit ok, safe, on time
+
+## MODULE 18 — Spending changes (`finance/spending_changes.py`)
+- [ ] 18.1 flexible-only, protected kept, ≤3, syntax valid, stop/reduce exclusive
+- [ ] 18.2 change flips plan safe, deadline holds, no gratuitous changes
+
+## MODULE 19 — Method eligibility (`decision/eligibility.py`)
+- [ ] 19.1 filter by accepted/excluded methods, installment + partial preferences
+- [ ] 19.2 selected plan is safe + eligible + correctly ranked
+
+## MODULE 20 — Ranker (`finance/optimizer.py`)
+- [ ] 20.1 deadline → no-changes → min total → earlier start → fewer payments → lowest option id
+- [ ] 20.2 tie tests incl. final option-id break
+
+## MODULE 21 — Decision (`decision/decision.py`)
+- [ ] 21.1 canonical `Decision` carries all 8 fields + evidence + explanation facts
+- [ ] 21.2 status↔method↔plan↔dates↔changes↔explanation consistent
+
+## MODULE 22 — Output (`output/serializer.py`, `validator.py`, `scripts/validate_output.py`)
+- [ ] 22.1 exact columns/order/count/request order
+- [~] 22.2 structural validator live; financial/plan/date/evidence/consistency layers pending engine
+
+## MODULE 23 — Explanation (`output/explanation.py`)
+- [ ] 23.1 facts ⊆ validated decision facts; amounts/dates/evidence match; nothing invented
+- [ ] 23.2 concise, specific, decision-consistent
+
+## MODULE 24 — AI layer
+- [ ] 24.1/24.2/24.3 message/image/explanation prompts bounded, schema-validated, fallback + usage tracked;
+  explanation receives validated facts only
+
+## MODULE 25 — Evaluation (`evaluation/`, `scripts/evaluate.py`)
+- [ ] 25.1 local proxies: structural/financial/decision/plan/evidence/explanation/robustness (NOT official score)
+- [ ] 25.2 sample/edge/adversarial/regression/full-dataset suites
+- [ ] 25.3 ablation E0→E7; keep AI only on measured wins
+
+## MODULE 26 — Regression (`tests/regression/`)
+- [ ] 26.1 fixtures: row-order, evidence mismatch, cancel/amend, currency, date, plan, preference
+- [ ] 26.2 gate: `pytest` + validator must pass before commits
+
+## MODULE 27 — Observability (`observability/tracing.py`)
+- [ ] 27.1 per-request trace: request→evidence→facts→state→forecast→candidates→rejected→selected→decision→output
+- [ ] 27.2 no secrets, structured, deterministic ids
+
+## MODULE 28 — Token & cost (`evaluation/usage_report.md`)
+- [ ] 28.1 provider/model/calls/in/out/total tokens tracked
+- [ ] 28.2 total + per-request cost, per-model breakdown
+- [ ] 28.3 report reflects the FINAL full-dataset run, no secrets
+
+## MODULE 29 — Security
+- [ ] 29.1 `.env`/`.env.example`, clean history, secret scan
+- [ ] 29.2 injection/malicious-message/malicious-image/malformed-data tests
+- [ ] 29.3 no secrets in CSV/logs/artifacts
+
+## MODULE 30 — Efficiency
+- [ ] 30.1 full-run runtime measured, hot loops trimmed
+- [ ] 30.2 model calls minimal, compact contexts, caching where safe, deterministic shortcuts
+- [ ] 30.3 no spare agents/providers/dependencies
+
+## MODULE 31 — Clean room (`scripts/clean_room_run.py`)
+- [ ] 31.1 fresh env: install, env vars, dataset
+- [ ] 31.2 run → `output.csv` → validate → usage report, no hidden state
+
+## MODULE 32 — Reproducibility
+- [ ] 32.1 double-run diff (order, ranking, balances, dates, FX, CSV); investigate drift
+- [ ] 32.2 stable ordering/ranking/math/serialization
+
+## MODULE 33 — Documentation
+- [x] 33.1/33.2 README + 7 tech docs + interview notes skeleton (+ this checklist)
+
+## MODULE 34 — Interview (`docs/interview-notes.md`)
+- [ ] 34.1 WHAT/WHERE/WHY/alternative/trade-off/failure/test/example/limitation per component
+- [ ] 34.2 deterministic-core + AI-boundary + fallback rationale, trade-offs, limitations
+- [ ] 34.3 worked examples: normal, ambiguous, image-only, conflict, installment
+
+## MODULE 35 — Final submission
+- [ ] 35.1 `output.csv`: 250+header, order, schema, validator green
+- [ ] 35.2 `code.zip`: runnable, README, evaluation files, no secrets, packaging tested
+- [ ] 35.3 usage report complete (provider/model/calls/tokens/costs)
+- [ ] 35.4 `log.txt` complete, append-only, identities exact, redacted
+
+---
+
+## Top-10 readiness gate (ALL true before submission)
+
+```text
+[ ] specification complete · relationships verified · canonical state correct
+[ ] currency deterministic · 90-day simulator correct · plans + spending changes correct
+[ ] ranking correct · evidence grounded · output order exact · validator green
+[ ] adversarial + regression green · token report complete · clean-room green
+[ ] deterministic replay checked · transcript complete · interview prepared
+[ ] no secrets · artifacts ready
+```
+
+## Red-flag gate (ANY true ⇒ DO NOT submit)
+
+Row mismatch · duplicate/missing request · floor violation · fabricated evidence ·
+bad schedule · deadline violation · unsupported method · invented installments ·
+blank-as-zero · LLM in arithmetic/ranking · explanation≠decision · secrets committed ·
+transcript bad · usage report missing · clean-room failure · critical regression open.
