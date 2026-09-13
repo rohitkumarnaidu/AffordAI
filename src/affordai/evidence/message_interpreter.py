@@ -19,6 +19,14 @@ _PATTERNS: list[tuple[str, re.Pattern]] = [
     ("delay", re.compile(r"\b(?:delay(?:ed)?|postpone(?:d)?|defer(?:red)?|move (?:it )?to)\b", re.I)),
 ]
 
+# Payment-preference signals (advisory, deterministic; profile remains authoritative)
+_PREF_PATTERNS: list[tuple[str, re.Pattern]] = [
+    ("installments", re.compile(r"\b(?:only(?:\s+in)?\s+installments?|prefer\s+installments?|installment\s+only|pay\s+in\s+installments?)\b", re.I)),
+    ("partial_payment", re.compile(r"\b(?:only\s+partial|prefer\s+partial|split\s+payment|pay\s+part|partial\s+payment)\b", re.I)),
+    ("full_payment", re.compile(r"\b(?:only\s+full|pay\s+in\s+full|prefer\s+full|full\s+payment(?:\s+only)?)\b", re.I)),
+    ("wait", re.compile(r"\b(?:please\s+wait|hold\s+off|delay\s+purchase|wait\s+to\s+pay)\b", re.I)),
+]
+
 # NOTE: `payroll` deliberately excluded: payroll refs (EMP-0001, SER-0007)
 # follow the word and poison amount capture. `pay` keeps (?![a-z]) guard.
 # Gap allows verb phrases between keyword and number (e.g. Indonesian
@@ -75,4 +83,16 @@ def interpret(message: dict) -> list[Evidence]:
                 **base,
             )
         )
+    # Payment preference (advisory, does not directly gate eligibility — deterministic profile does)
+    for pref_kind, rx in _PREF_PATTERNS:
+        if rx.search(text):
+            facts.append(
+                Evidence(
+                    kind="preference",
+                    raw_value=text[:200],
+                    normalized_value=pref_kind,
+                    **base,
+                )
+            )
+            break
     return facts

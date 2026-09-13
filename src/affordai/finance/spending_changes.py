@@ -13,9 +13,12 @@ from decimal import Decimal
 from itertools import combinations
 
 from affordai.finance.forecast import simulate
-
-STOP_OK = {"stoppable", "reducible_or_stoppable"}
-REDUCE_OK = {"reducible", "reducible_or_stoppable"}
+from affordai.finance.state import (
+    REDUCE_OK,
+    is_protected,
+    stop_allowed,
+    validate_reduction,
+)
 MAX_CHANGES = 3
 _SHORTLIST = 8
 _VARIANTS_PER_BASE = 3
@@ -43,19 +46,27 @@ def candidate_targets(state, profile) -> list[Target]:
             continue
         flex = row["flexibility"]
         cat = row["category"]
+        # P0: protected categories must never be mutated (Tier-1 contract;
+        # single source of truth in finance.state).
+        if is_protected(cat, profile):
+            continue
         occurrences = len(flows)
         recurring = occurrences >= 2 or row["event_type"] == "subscription"
         if not recurring:
             continue
         total = -sum(f.amount_home for f in flows)
-        if flex in STOP_OK and cat in stop_willing:
+        if stop_allowed(row, profile)[0]:
             out.append(Target(source, "stop", None, total))
         if flex in REDUCE_OK and cat in reduce_willing:
-            new_amount = row["minimum_allowed_amount"]
-            if new_amount is not None and Decimal("0") <= new_amount:
-                capped_total = sum(min(-f.amount_home, new_amount) for f in flows)
-                if capped_total < total:
-                    out.append(Target(source, "reduce", new_amount, total - capped_total))
+            try:
+                new_amount = validate_reduction(
+                    row, profile, row["minimum_allowed_amount"]
+                )
+            except Exception:
+                continue
+            capped_total = sum(min(-f.amount_home, new_amount) for f in flows)
+            if capped_total < total:
+                out.append(Target(source, "reduce", new_amount, total - capped_total))
     out.sort(key=lambda t: (-t.saving, t.event_id, t.mode))
     return out
 

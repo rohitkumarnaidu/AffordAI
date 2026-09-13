@@ -10,7 +10,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 from affordai.finance.money import quantize_money
-from affordai.finance.timeline import WINDOW_DAYS
+from affordai.finance.temporal import WINDOW_DAYS
 
 Change = tuple[str, Decimal | None]  # (source_event_id, None=stop | new_amount=reduce cap)
 

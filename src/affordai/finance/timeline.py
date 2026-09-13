@@ -20,15 +20,18 @@ scheduled flows within +-3 days, same category and ~equal amount.
 """
 from __future__ import annotations
 
-import calendar
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from decimal import Decimal
 from statistics import median
 
 from affordai.finance.money import quantize_money
-
-WINDOW_DAYS = 90
+from affordai.finance.temporal import (
+    WINDOW_DAYS,
+    clamp_month_day,
+    flow_sort_key,
+    forecast_end,
+)
 
 
 @dataclass
@@ -44,8 +47,8 @@ class Flow:
 
 
 def _same_month_day(year: int, month: int, dom: int) -> date:
-    last = calendar.monthrange(year, month)[1]
-    return date(year, month, min(dom, last))
+    """Compat alias: month-aware day construction (see temporal.clamp_month_day)."""
+    return clamp_month_day(year, month, dom)
 
 
 def _infer_recurrence(
@@ -100,7 +103,14 @@ def _infer_recurrence(
         if amount == 0:
             continue
         doms = [r["settlement_date"].day for r in recent]
-        dom = max(set(doms), key=doms.count)
+        # Deterministic tie-break: most frequent wins, ties -> most recent
+        # (mirrors message_income._payday_dom; avoids set-order nondeterminism)
+        _freq: dict[int, int] = {}
+        _last: dict[int, int] = {}
+        for _i, _d in enumerate(doms):
+            _freq[_d] = _freq.get(_d, 0) + 1
+            _last[_d] = _i
+        dom = max(_freq, key=lambda d: (_freq[d], _last[d]))
         flex = recent[-1]["flexibility"]
         if not all(r["flexibility"] == flex for r in recent):
             flex = "fixed"
@@ -213,7 +223,7 @@ def build_flows(
     appended as scheduled salary flows after +-3d dedupe.
     """
     req_date = ctx.request["request_date"]
-    end = req_date + timedelta(days=WINDOW_DAYS - 1)
+    end = forecast_end(req_date)
     home = ctx.profile["home_currency"]
     protect = set(ctx.profile["expense_categories_to_protect"])
     flows: list[Flow] = []
@@ -312,5 +322,5 @@ def build_flows(
         )
         if not clash:
             flows.append(f)
-    flows.sort(key=lambda f: (f.day, f.amount_home))
+    flows.sort(key=flow_sort_key)
     return flows, unknowns, notes
