@@ -1,9 +1,9 @@
 # Evaluation Report -- final (LOCAL MEASUREMENT)
 
-- timestamp: 2026-09-13T11:16:46.658210+00:00
+- timestamp: 2026-09-13T11:34:13.708880+00:00
 - dataset: dataset/official (n=250, fallbacks=0)
 - version: E7-production (all components, deterministic, LLM off)
-- runtime: 2.96s
+- runtime: 2.87s
 - OFFICIAL score: UNKNOWN -- OFFICIAL HackerRank score: UNKNOWN (no official formula published). Every metric below is a LOCAL PROXY / LOCAL MEASUREMENT unless tagged otherwise.
 
 ## Metrics (27.2)

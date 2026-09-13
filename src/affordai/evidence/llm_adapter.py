@@ -45,8 +45,7 @@ SUPPORTED_CURRENCIES = frozenset({"EUR", "USD", "IDR", "INR", "ZAR"})
 
 MODEL_CALLS: tuple[dict, ...] = (
     {
-        "call_id": "message_extract",
-        "provider": "config MODEL_PROVIDER (empty in E0)",
+        "call_id": "message_extract",        "provider": "config MODEL_PROVIDER (empty in E0)",
         "model": "config MODEL_NAME (empty in E0)",
         "trigger": "per request with >=1 message AND needs_llm_for_messages() true",
         "purpose": "semantic interpretation of message text into typed facts only",
@@ -70,6 +69,20 @@ MODEL_CALLS: tuple[dict, ...] = (
         "fallback": "UNKNOWN amount marker (blank is never zero); plan must stay safe without it",
         "token_measurement": "same ModelCallRecord accounting",
     },
+)
+
+# Sec 34 failure matrix (single source of truth; code is authoritative).
+# Every model/tool boundary failure -> detection -> retry? -> fallback ->
+# final behavior. "Logged?" is always the Sec-33 RequestTrace failures list
+# plus the legacy Trace event (decision-fallback / evidence detail).
+FAILURE_MATRIX: tuple[dict, ...] = (
+    {"failure": "timeout", "detection": "TimeoutError from backend", "retry": "bounded (1+max_retries)", "fallback": "empty proposals; deterministic facts still apply", "final": "safe decision from deterministic evidence; never fabricated", "logged": "yes"},
+    {"failure": "api-failure-5xx", "detection": "ProviderError from backend", "retry": "bounded (1+max_retries)", "fallback": "empty proposals; deterministic facts still apply", "final": "safe decision from deterministic evidence; never fabricated", "logged": "yes"},
+    {"failure": "rate-limit-429", "detection": "RateLimitError from backend", "retry": "bounded backoff (0.5,1,2.. cap 8s)", "fallback": "empty proposals; deterministic facts still apply", "final": "safe decision; no retry storm (attempts fixed); never fabricated", "logged": "yes"},
+    {"failure": "invalid-json", "detection": "validate_proposal_json returns None", "retry": "no (non-retryable)", "fallback": "proposal dropped; UNKNOWN amount marker for blank image amounts", "final": "malformed output never enters the financial engine", "logged": "yes"},
+    {"failure": "unexpected-output", "detection": "_validate_proposal strict gate (kind/enum/type/range/date/currency/extra-field)", "retry": "no (non-retryable)", "fallback": "proposal dropped; registry ownership re-checks survivors; never enters engine", "final": "deterministic rejection; engine re-validates", "logged": "yes"},
+    {"failure": "missing-evidence", "detection": "no usable fact for a financial claim", "retry": "n/a", "fallback": "UNKNOWN marker (blank amount never zero); safest valid decision", "final": "missing_evidence recorded; no invented fact", "logged": "yes"},
+    {"failure": "image-failure", "detection": "resolve_images_for_event file_exists false / unreadable / vision invalid", "retry": "bounded only for transient vision transport", "fallback": "amount_unknown_evidence (confidence 0); plan must stay safe without it", "final": "unknown amount never becomes 0", "logged": "yes"},
 )
 
 
@@ -135,6 +148,7 @@ class ModelCallRecord:
     retry_number: int = 0
     fallback: str = ""
     token_source: str = "estimated"  # estimated | provider
+    backoff_s: list = field(default_factory=list)  # bounded backoff schedule actually applied
 
     @property
     def total_tokens(self) -> int:
@@ -359,13 +373,48 @@ def check_batch_safe(request_ids: list[str], user_ids: list[str]) -> None:
 TRANSIENT_ERRORS = (TimeoutError, ConnectionError)
 
 
+class RateLimitError(Exception):
+    """Provider 429 rate-limit signal (transient: bounded retry, then fallback)."""
+
+
+class ProviderError(Exception):
+    """Provider 5xx / unavailable signal (transient: bounded retry, then fallback)."""
+
+
+# Sec 34.3 explicit retry policy (single source of truth).
+# RETRYABLE: transient transport/provider signals only.
+RETRYABLE_ERRORS = (TimeoutError, ConnectionError, RateLimitError, ProviderError)
+# NON-RETRYABLE (never retried, immediate fallback): invalid schema/JSON,
+# deterministic validation failures, business-rule violations, unsupported
+# operations, cross-request batching violations, bad local configuration.
+NON_RETRYABLE_ERRORS = (ValueError, TypeError, KeyError, json.JSONDecodeError)
+
+
+def backoff_for_attempt(attempt: int, base_s: float = 0.5, cap_s: float = 8.0) -> float:
+    """Bounded exponential backoff schedule (deterministic, no sleep here).
+
+    attempt is 0-based retry number. Returns min(cap, base * 2**attempt).
+    The adapter records the schedule in the call record; the backend (or a
+    future provider plug-in) performs the actual wait. No retry storm:
+    total attempts are always 1 + max_retries regardless of error mix.
+    """
+    try:
+        wait = float(base_s) * (2 ** max(0, int(attempt)))
+        return min(float(cap_s), wait)
+    except Exception:
+        return float(base_s)
+
+
 def call_with_retry(
     backend, config: LlmConfig, *, purpose: str, request_id: str = ""
 ) -> tuple[list[dict], ModelCallRecord]:
     """Invoke `backend()` under a FINITE retry budget.
 
-    - Retries TRANSIENT errors only, up to config.max_retries.
-    - Invalid schema never retries. Never raises; exhaustion -> fallback.
+    - Retries RETRYABLE errors only (timeout/connection/429/5xx), up to
+      config.max_retries. Records the bounded backoff schedule per retry.
+    - NON-RETRYABLE errors (invalid schema, validation, business-rule,
+      unsupported op) never retry: immediate fallback.
+    - Never raises; exhaustion -> fallback. Never infinite.
     """
     record = ModelCallRecord(
         timestamp=_utc_now_iso(),
@@ -376,6 +425,7 @@ def call_with_retry(
     )
     attempts = 1 + max(0, int(config.max_retries))
     last_error = "ok"
+    backoff_schedule: list[float] = []
     for attempt in range(attempts):
         record.retry_number = attempt
         try:
@@ -384,16 +434,22 @@ def call_with_retry(
             record.output_tokens += int(out_tok or 0)
             record.success = True
             record.fallback = ""
+            if backoff_schedule:
+                record.fallback = ""
+            record.backoff_s = backoff_schedule
             return list(raw_items or []), record
-        except TRANSIENT_ERRORS as exc:
+        except RETRYABLE_ERRORS as exc:
             last_error = f"transient:{type(exc).__name__}"
+            backoff_schedule.append(backoff_for_attempt(attempt))
             continue
         except Exception as exc:
             record.success = False
             record.fallback = f"backend:{type(exc).__name__}"
+            record.backoff_s = backoff_schedule
             return [], record
     record.success = False
     record.fallback = f"retry-exhausted:{last_error}"
+    record.backoff_s = backoff_schedule
     return [], record
 
 

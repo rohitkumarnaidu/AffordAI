@@ -10,7 +10,7 @@
 - Estimated total cost: 0.0000
 - Estimated cost/request: 0.000000
 - Requests processed: 250
-- Wall runtime (s): 2.5
+- Wall runtime (s): 2.3
 - Token source: estimated (local chars/4)
 - Note: deterministic E0 (llm: LLM_ENABLED != 1)
 
