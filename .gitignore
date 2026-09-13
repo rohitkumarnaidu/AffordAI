@@ -19,6 +19,7 @@ Thumbs.db
 
 # logs / local artifacts (never submission artifacts)
 *.log
+log.txt
 tmp/
 outputs/local/
 dataset/local/
