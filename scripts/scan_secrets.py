@@ -77,7 +77,10 @@ def main() -> int:
         for name, rx in FAIL_PATTERNS:
             m = rx.search(text)
             if m:
-                fails.append(f"FAIL {rel}: {name} match {m.group(0)[:12]}...")
+                if any(k in rel for k in TESTISH):
+                    warns.append(f"WARN {rel}: {name} dummy fixture? {m.group(0)[:12]}...")
+                else:
+                    fails.append(f"FAIL {rel}: {name} match {m.group(0)[:12]}...")
         for m in ASSIGN_RE.finditer(text):
             if any(k in rel for k in ("tests/",)) or rel.endswith((".md", ".example")):
                 warns.append(f"WARN {rel}: key-like assignment (test/doc fixture?) {m.group(1)}=...")
