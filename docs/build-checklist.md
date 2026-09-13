@@ -137,9 +137,9 @@ Referenced by `AGENTS.md` §§27-27b, 30. Update as work lands.
 - [x] 29.3 no secrets in CSV/logs/artifacts -- Evidence: `code.zip` contains no .env, `log.txt` redacted, `output.csv` clean
 
 ## MODULE 30 -- Efficiency
-- [ ] 30.1 full-run runtime measured, hot loops trimmed
-- [ ] 30.2 model calls minimal, compact contexts, caching where safe, deterministic shortcuts
-- [ ] 30.3 no spare agents/providers/dependencies
+- [x] 30.1 full-run runtime measured, hot loops trimmed -- Evidence: scripts/benchmark.py TOTAL 2.389s (decide 84.4% inherent sim, 8.1ms/req); indexed joins by_user/by_request; replay d8386548 identical; tests/regression/test_sections_33_35.py 30 tests
+- [x] 30.2 model calls minimal, compact contexts, caching where safe, deterministic shortcuts -- Evidence: 0 calls/0 tokens E0; minimize_* + needs_llm_* gates; 16/16/11 image selectivity; CACHE NOT ADOPTED (measured, _CACHE empty)
+- [x] 30.3 no spare agents/providers/dependencies -- Evidence: no SDK vendored, no dashboard/OTel/queue added (report 22); deps unchanged (pandas only)
 
 ## MODULE 31 -- Clean room (`scripts/clean_room_run.py`)
 - [x] 31.1 fresh env: install, env vars, dataset -- Evidence: `scripts/clean_room_run.py` fresh subprocess scrubbed env temp dir, `C:\Users\Dell\AppData\Local\Temp\affordai-cleanroom-*` 2026-09-13

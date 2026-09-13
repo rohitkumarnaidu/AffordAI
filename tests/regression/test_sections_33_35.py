@@ -184,11 +184,11 @@ def test_trace_contains_output_mapping():
 
 def test_trace_redacts_secrets():
     rt = RequestTrace(request_id="r1", original_row_index=0, trace_id="t", run_id="E0")
-    rt.log_failure("backend-test", "OPENAI_API_KEY=sk-ant-1234567890abcdef timeout")
+    rt.log_failure("backend-test", "OPENAI_API_KEY=supersecretvalue123 timeout")
     assert not contains_secret(rt.failures[0]["detail"])
     assert "[REDACTED]" in rt.failures[0]["detail"]
     blob = rt.to_json()
-    assert "sk-ant-1234567890abcdef" not in blob
+    assert "supersecretvalue123" not in blob
 
 
 def test_trace_ids_deterministic():

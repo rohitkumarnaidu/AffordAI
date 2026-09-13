@@ -42,7 +42,7 @@
    },
    "n_requests": 250,
    "result": "LOCAL MEASUREMENT",
-   "runtime_s": 2.06,
+   "runtime_s": 1.95,
    "sample_accuracy": {
     "earliest_exact": 0.36,
     "method_accuracy": 0.4,
@@ -90,7 +90,7 @@
    },
    "n_requests": 250,
    "result": "LOCAL MEASUREMENT",
-   "runtime_s": 4.63,
+   "runtime_s": 5.79,
    "sample_accuracy": {
     "earliest_exact": 0.36,
     "method_accuracy": 0.48,
@@ -135,7 +135,7 @@
    },
    "n_requests": 250,
    "result": "LOCAL MEASUREMENT",
-   "runtime_s": 2.0,
+   "runtime_s": 5.28,
    "sample_accuracy": {
     "earliest_exact": 0.36,
     "method_accuracy": 0.48,
@@ -223,8 +223,8 @@
    "selective_triggers": "image resolution only for blank amounts (16); message interpreter deterministic-only; LLM off by default",
    "total_tokens": 0,
    "version": "E7",
-   "wall_runtime_s": 2.0
+   "wall_runtime_s": 5.28
   }
  },
- "wall_runtime_s": 28.9
+ "wall_runtime_s": 52.4
 }

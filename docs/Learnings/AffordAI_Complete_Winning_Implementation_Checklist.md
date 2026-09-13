@@ -1086,66 +1086,66 @@ For every bug:
 # 33. OBSERVABILITY
 
 ## 33.1 Request trace
-- [ ] request
-- [ ] evidence
-- [ ] extracted facts
-- [ ] financial state
-- [ ] forecast
-- [ ] candidate plans
-- [ ] rejected plans + reasons
-- [ ] selected plan
-- [ ] final decision
-- [ ] output row
+- [x] request -- Evidence: observability/request_trace.py RequestTrace (request_id/original_row_index/trace_id/run_id/start/end/status); pipeline.run creates one per request
+- [x] evidence -- Evidence: rtrace.evidence {message/event/image/payment-option/profile ids + used ids}; test_trace_contains_evidence
+- [x] extracted facts -- Evidence: rtrace.facts provenance dicts + rejected_facts + llm_fallback; request_28 amend_amount/message_20 trace
+- [x] financial state -- Evidence: rtrace.financial_state {opening/minimum/requested/home/dates/n_flows}; test_trace_contains_financial_state
+- [x] forecast -- Evidence: rtrace.forecast {horizon 90/min_closing/worst_day/safe/earliest/constraint}; test_trace_contains_forecast
+- [x] candidate plans -- Evidence: rtrace.candidates {kind/option/payments/total/dates/eligible/safe}; request_30 9 candidates
+- [x] rejected plans + reasons -- Evidence: rtrace.rejected_plans {reason_code/reason}; 7 codes (DEADLINE_EXCEEDED/METHOD_NOT_ACCEPTED/PARTIAL_NOT_ALLOWED/INSTALLMENT_*/UNSAFE_MIN_BALANCE/OUTRANKED); request_30 shows 4 kinds
+- [x] selected plan -- Evidence: rtrace.selected_plan {kind/option_id/ranking_key/reason}; none-shape when no winner
+- [x] final decision -- Evidence: rtrace.final_decision 8 fields == Decision; test_trace_contains_final_decision
+- [x] output row -- Evidence: rtrace.output_row {row_index/request_id/validation_status} mapped post-sort; test_trace_contains_output_mapping
 
 ## 33.2 Trace integrity
-- [ ] request ID preserved
-- [ ] trace IDs deterministic where possible
-- [ ] no secret leakage
-- [ ] trace useful for interview debugging
+- [x] request ID preserved -- Evidence: test_request_id_preserved (input==decision order, trace==decision==output per row, 250 rows)
+- [x] trace IDs deterministic where possible -- Evidence: make_trace_id sha256(run|request|index)[:16]; test_trace_ids_deterministic (wall-clock times informational only)
+- [x] no secret leakage -- Evidence: redact() on all free text; test_trace_redacts_secrets; contains_secret scan NONE
+- [x] trace useful for interview debugging -- Evidence: scripts/trace_request.py --request <id>; 5 real traces evaluation/local/trace_*.json (26/28/33/30 + fallback)
 
 ---
 
 # 34. RELIABILITY
 
 ## 34.1 Model/tool failure
-- [ ] Timeout
-- [ ] API failure
-- [ ] Rate limit
-- [ ] Invalid JSON
-- [ ] Unexpected output
-- [ ] Missing evidence
-- [ ] Image failure
+- [x] Timeout -- Evidence: test_timeout (3 attempts, backoff [0.5,1.0,2.0], retry-exhausted fallback); FAILURE_MATRIX row
+- [x] API failure -- Evidence: test_api_failure (ProviderError 5xx, 2 attempts, fallback)
+- [x] Rate limit -- Evidence: test_rate_limit (RateLimitError 429, 4 attempts, backoff [0.5,1.0,2.0,4.0])
+- [x] Invalid JSON -- Evidence: test_invalid_json (None, no retry, dropped; propose_facts disabled path 0 calls)
+- [x] Unexpected output -- Evidence: test_unexpected_output (enum/type/null/extra-field rejected by _validate_proposal)
+- [x] Missing evidence -- Evidence: test_missing_evidence (11 UNKNOWN markers conf 0 on real data, validator green, never zero)
+- [x] Image failure -- Evidence: test_image_failure (file_exists False -> UNKNOWN; 16/16 images resolve)
 
 ## 34.2 Fallback
-- [ ] Explicit fallback behavior
-- [ ] Safe fallback
-- [ ] No fabricated financial fact
-- [ ] Fallback logged
+- [x] Explicit fallback behavior -- Evidence: FAILURE_MATRIX per-failure fallback column; AdapterResult.fallback_reason; _fallback_decision
+- [x] Safe fallback -- Evidence: test_fallback (injected KeyError -> not_affordable/not_recommended/none, capacity preserved)
+- [x] No fabricated financial fact -- Evidence: matrix rows assert never-fabricated; UNKNOWN never 0; floor simulate authoritative
+- [x] Fallback logged -- Evidence: rtrace.failures + Trace decision-fallback; fallback trace evaluation/local/trace_fallback_request_28.json
 
 ## 34.3 Retry
-- [ ] Bounded retries
-- [ ] Retry only transient errors
-- [ ] No retry storm
+- [x] Bounded retries -- Evidence: test_bounded_retry (attempts exactly 1+max_retries for 0/1/3); backoff capped 8.0
+- [x] Retry only transient errors -- Evidence: test_non_retryable_error_not_retried (ValueError 1 attempt); RETRYABLE vs NON_RETRYABLE_ERRORS
+- [x] No retry storm -- Evidence: fixed attempt budget + capped exponential schedule recorded in backoff_s
 
 ---
 
 # 35. PERFORMANCE
 
 ## 35.1 Runtime
-- [ ] Full dataset runtime measured
-- [ ] Bottlenecks identified
-- [ ] No unnecessary O(N²) behavior where avoidable
+- [x] Full dataset runtime measured -- Evidence: scripts/benchmark.py; TOTAL 2.389s (load 0.339/contexts 0.032/decide 2.016/serialize 0.001/validate 0.002); evaluation/local/benchmark.json; test_full_dataset_benchmark
+- [x] Bottlenecks identified -- Evidence: decide stage 84.4% (90-day sim per candidate, inherent to safety proof, 8.1ms/req -- no further optimization justified)
+- [x] No unnecessary O(N²) behavior where avoidable -- Evidence: indexed joins by_user/by_request in build_contexts; test_no_unnecessary_nested_scan; replay hash d8386548 identical before/after
 
 ## 35.2 AI performance
-- [ ] Model calls minimized
-- [ ] Context minimized
-- [ ] Image processing selective
-- [ ] Caching measured
+- [x] Model calls minimized -- Evidence: test_model_call_count (E0 0 calls/0 tokens); needs_llm_* selective gates re-tested
+- [x] Context minimized -- Evidence: minimize_message_context (<=500ch, ids only) + check_batch_safe (existing, re-tested via sec31 suite 53 passed)
+- [x] Image processing selective -- Evidence: test_selective_image_processing (16 total/16 linked/11 UNKNOWN; only blank+existing triggers vision; blank never 0)
+- [x] Caching measured -- Evidence: test_cache_behavior_if_implemented (versioned keys; _CACHE empty after full run => CACHE NOT ADOPTED, documented in benchmark report)
 
 ## 35.3 Competition time
-- [ ] Build order optimized
-- [ ] Expensive optional features deferred
-- [ ] Final submission buffer preserved
+- [x] Build order optimized -- Evidence: docs/implementation/sections-33-35-report.md 35.3 (spec->core->validation->eval->evidence->reliability->observability->performance->polish)
+- [x] Expensive optional features deferred -- Evidence: no dashboard/OTel/Redis/agents added (report 22); bottleneck left unoptimized deliberately
+- [x] Final submission buffer preserved -- Evidence: core verification done ~17:35 IST, buffer to 18:00 for rebuild + clean-room + submit
 
 ---
 
