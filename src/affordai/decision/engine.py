@@ -31,17 +31,20 @@ from decimal import Decimal
 from typing import Any
 
 
-def evaluate_and_select(state, candidates, profile, deadline):
-    """Deterministic pipeline: filter unsafe -> deadline -> preference -> rank -> select."""
+def evaluate_and_select(state, candidates, profile, deadline, allows_partial: bool = False):
+    """Deterministic pipeline: filter unsafe -> deadline -> preference -> rank -> select.
+
+    allows_partial must be passed explicitly from the request (no hardcoded default
+    that could bypass user preference). Production path (pipeline.py:decide_context)
+    does not call this helper; it calls filter_candidates directly with the real
+    req allows_partial_payment. This helper is for isolated/test use.
+    """
     from affordai.decision.eligibility import filter_candidates
     from affordai.finance import optimizer
     from affordai.finance.forecast import simulate
 
     # Step 1: eligibility = deadline + preference (safety not decided here, per eligibility.py contract)
-    eligible = filter_candidates(candidates, profile, True, deadline)  # allows_partial handled at generation; True passes through
-    # Actually respect profile's allows_partial via candidate kind filtering inside eligibility;
-    # caller passes actual allows_partial; we keep for backward compat but need to pass real.
-    # For engine standalone, we recompute with stored flag if available.
+    eligible = filter_candidates(candidates, profile, allows_partial, deadline)
     # Safety validation: re-simulate every eligible candidate, keep only safe
     validated = [c for c in eligible if simulate(state, c.payments, getattr(c, "changes", None) or {}).ok]
     winner = optimizer.select(validated, deadline) if validated else None
@@ -87,12 +90,12 @@ def validate_cross_field(decision) -> list[str]:
     return errors
 
 
-def decide(state, candidates, profile, deadline, request_date) -> tuple[str, str, Any]:
+def decide(state, candidates, profile, deadline, request_date, allows_partial: bool = False) -> tuple[str, str, Any]:
     """Full deterministic decision: rank, select, derive, validate.
 
     Returns (status, method, winner_candidate_or_None). Raises on invariant violation
     (caller degrades to fallback).
     """
-    validated, winner = evaluate_and_select(state, candidates, profile, deadline)
+    validated, winner = evaluate_and_select(state, candidates, profile, deadline, allows_partial)
     status, method = derive_status_method(winner)
     return status, method, winner

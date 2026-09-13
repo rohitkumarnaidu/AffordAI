@@ -258,6 +258,24 @@ def build_contexts(tables: dict) -> list[RequestContext]:
     by_user_events: dict[str, list] = {}
     for e in tables["events"]:
         by_user_events.setdefault(e["user_id"], []).append(e)
+    # Sec 35.1 indexed lookups (no O(R*M) full-table scan per request):
+    # messages/images pre-indexed by user; per-request filter then touches
+    # only that user's rows (215 msgs / 16 imgs over 275 users ~= tiny).
+    by_user_messages: dict[str, list] = {}
+    for m in tables["messages"]:
+        by_user_messages.setdefault(m.get("user_id"), []).append(m)
+    by_user_images: dict[str, list] = {}
+    for i in tables["images"]:
+        by_user_images.setdefault(i.get("user_id"), []).append(i)
+    # Wrong-user rejection lookup indexed by request (Sec 35.1).
+    by_request_messages: dict[str, list] = {}
+    for m in tables["messages"]:
+        if m.get("request_id") is not None:
+            by_request_messages.setdefault(m["request_id"], []).append(m)
+    by_request_images: dict[str, list] = {}
+    for i in tables["images"]:
+        if i.get("request_id") is not None:
+            by_request_images.setdefault(i["request_id"], []).append(i)
     by_request_options: dict[str, list] = {}
     for o in tables["options"]:
         by_request_options.setdefault(o["request_id"], []).append(o)
@@ -276,24 +294,26 @@ def build_contexts(tables: dict) -> list[RequestContext]:
         uid = req["user_id"]
         rid = req["request_id"]
 
-        # Messages: must belong to this user; if request-bound, must match rid
+        # Messages: must belong to this user; if request-bound, must match rid.
+        # Indexed: only this user's rows are scanned (Sec 35.1, not all tables).
         raw_messages = [
             m
-            for m in tables["messages"]
-            if m.get("user_id") == uid and (m.get("request_id") in (rid, None))
+            for m in by_user_messages.get(uid, [])
+            if (m.get("request_id") in (rid, None))
         ]
-        # Images: same ownership rule
+        # Images: same ownership rule (indexed by user).
         raw_images = [
             i
-            for i in tables["images"]
-            if i.get("user_id") == uid and (i.get("request_id") in (rid, None))
+            for i in by_user_images.get(uid, [])
+            if (i.get("request_id") in (rid, None))
         ]
-        # Record wrong-user attempts that were rejected (for observability)
+        # Record wrong-user attempts that were rejected (for observability).
+        # Indexed by request (Sec 35.1): no per-request full-table scan.
         rejected_messages = [
-            m for m in tables["messages"] if m.get("request_id") == rid and m.get("user_id") != uid
+            m for m in by_request_messages.get(rid, []) if m.get("user_id") != uid
         ]
         rejected_images = [
-            i for i in tables["images"] if i.get("request_id") == rid and i.get("user_id") != uid
+            i for i in by_request_images.get(rid, []) if i.get("user_id") != uid
         ]
 
         # Deduplicate by PK (preserve one-to-many correctly)
@@ -582,14 +602,15 @@ def _collect_evidence(
     media_dir: str,
     llm_config: LlmConfig,
     trace: Trace | None,
-) -> tuple[EvidenceRegistry, list[str], list]:
+) -> tuple[EvidenceRegistry, list[str], list, list[str]]:
     """Deterministic evidence + optional LLM proposals (validated or dropped).
 
     Sec 32.2: selective LLM calls -- message model only when semantic
     interpretation may add value beyond the deterministic pass; image model
     only for blank amounts with a linked file. Request isolation enforced
     via `check_batch_safe` (one request/user per call). Returns
-    (registry, used_ids, records) where records are secret-safe.
+    (registry, used_ids, records, fallback_reasons) where records are
+    secret-safe and fallback_reasons feed the Sec 33 request trace.
     """
     valid_event_ids = {e["event_id"] for e in ctx.events}
     valid_message_ids = {m["message_id"] for m in ctx.messages}
@@ -641,6 +662,7 @@ def _collect_evidence(
         except Exception:
             continue
     # Blank-amount linkage: resolve images; amounts stay UNKNOWN without vision.
+    img_fallbacks: list[str] = []
     for event in ctx.events:
         if event["amount"] is not None:
             continue
@@ -657,6 +679,7 @@ def _collect_evidence(
                 llm_config,
             )
             records.extend(getattr(img_proposals, "records", []))
+            img_fallbacks.append(f"{event['event_id']}:{img_proposals.fallback_reason}")
         filled = False
         for fact in img_proposals.facts:
             # Zero-trust: image path may only emit amount facts; any other kind (e.g. injected cancel) is dropped
@@ -699,7 +722,66 @@ def _collect_evidence(
             ctx.request_id,
             f"{len(registry)} facts, llm_fallback={llm.fallback_reason}",
         )
-    return registry, used, records
+    fallback_reasons = [f"message:{llm.fallback_reason}"] + img_fallbacks
+    return registry, used, records, fallback_reasons
+
+
+def _eligibility_rejection(candidate, profile: dict, allows_partial: bool, deadline) -> tuple[str, str] | None:
+    """Machine-readable eligibility rejection for ONE candidate (Sec 33.1G).
+
+    Returns (reason_code, reason_text) or None if the candidate passes the
+    eligibility stage. Mirrors `decision/eligibility.filter_candidates`
+    rule-for-rule; any drift between the two is a bug.
+    """
+    from affordai.decision.eligibility import KIND_METHOD
+
+    if candidate.last_date > deadline:
+        return (
+            "DEADLINE_EXCEEDED",
+            f"completion {candidate.last_date.isoformat()} exceeds desired_completion_date {deadline.isoformat() if hasattr(deadline, 'isoformat') else deadline}",
+        )
+    method = KIND_METHOD[candidate.kind]
+    if method not in set(profile.get("methods_will_consider", [])):
+        return (
+            "METHOD_NOT_ACCEPTED",
+            f"payment method {method} not in methods_will_consider {sorted(profile.get('methods_will_consider', []))}",
+        )
+    if candidate.kind == "partial" and not allows_partial:
+        return ("PARTIAL_NOT_ALLOWED", "request allows_partial_payment is false")
+    if candidate.kind == "installments":
+        max_months = profile.get("max_installment_months")
+        if max_months is None:
+            return ("INSTALLMENT_MONTHS_UNSET", "profile max_installment_months is null")
+        span_days = (candidate.last_date - candidate.first_date).days
+        if span_days > max_months * 31:
+            return (
+                "INSTALLMENT_TERM_EXCEEDED",
+                f"installment span {span_days}d exceeds max_installment_months {max_months} (~{max_months * 31}d)",
+            )
+    return None
+
+
+def _summarize_candidate(candidate) -> dict:
+    """Secret-safe candidate summary for the request trace (Sec 33.1F)."""
+    try:
+        payments = [(d.isoformat() if hasattr(d, "isoformat") else str(d), str(a)) for d, a in candidate.payments]
+    except Exception:
+        payments = []
+    try:
+        first = candidate.first_date.isoformat()
+        last = candidate.last_date.isoformat()
+    except Exception:
+        first, last = "", ""
+    return {
+        "kind": getattr(candidate, "kind", "?"),
+        "payment_option_id": getattr(candidate, "option_id", None),
+        "payments": payments,
+        "total_paid": str(getattr(candidate, "total_paid", "")),
+        "first_date": first,
+        "last_date": last,
+        "n_payments": len(payments),
+        "n_spending_changes": len(getattr(candidate, "changes", {}) or {}),
+    }
 
 
 def decide_context(
@@ -709,6 +791,8 @@ def decide_context(
     llm_config: LlmConfig | None = None,
     trace: Trace | None = None,
     out_records: list | None = None,
+    rtrace=None,
+    run_id: str = "E0",
 ) -> Decision:
     llm_config = llm_config or LlmConfig()
     media_dir = os.path.join(dataset_dir, "media", "images")
@@ -717,7 +801,7 @@ def decide_context(
     requested = req["requested_amount"]
     req_date = req["request_date"]
 
-    registry, _used, _records = _collect_evidence(ctx, media_dir, llm_config, trace)
+    registry, _used, _records, _fb_reasons = _collect_evidence(ctx, media_dir, llm_config, trace)
     if out_records is not None:
         out_records.extend(_records)
     facts = registry.facts_for(ctx.request_id)
@@ -880,7 +964,159 @@ def decide_context(
             f"candidates={len(candidates)} eligible={len(eligible)} "
             f"notes={';'.join(notes + gen_notes)[:200]}",
         )
+    if rtrace is not None:
+        _populate_rtrace(
+            rtrace, ctx, registry, _fb_reasons, state, safe, earliest,
+            candidates, eligible, validated, winner, status, method,
+            decision, run_id,
+        )
+        rtrace.finish("ok")
     return decision
+
+
+def _populate_rtrace(
+    rtrace, ctx, registry, fb_reasons, state, safe, earliest,
+    candidates, eligible, validated, winner, status, method,
+    decision, run_id: str,
+) -> None:
+    """Fill all 10 Sec-33 sections of one RequestTrace (diagnostics only).
+
+    Never raises into the pipeline: any introspection failure is recorded
+    as a trace failure entry, never a financial fact.
+    """
+    from affordai.finance.temporal import WINDOW_DAYS
+
+    try:
+        from affordai.security.redact import redact as _redact
+
+        rtrace.run_id = run_id
+        # A/B. request + evidence ids
+        rtrace.evidence = {
+            "message_ids": sorted(m.get("message_id", "") for m in ctx.messages),
+            "event_ids": sorted(e.get("event_id", "") for e in ctx.events),
+            "image_ids": sorted(i.get("image_id", "") for i in ctx.images),
+            "payment_option_ids": sorted(o.get("payment_option_id", "") for o in ctx.payment_options),
+            "profile_id": ctx.user_id,
+            "used_evidence_ids": sorted({f.source_id for f in registry.all_facts()}),
+            "join_issues": len(ctx.join_issues),
+        }
+        # C. extracted facts with provenance
+        rtrace.facts = [f.provenance() for f in registry.all_facts()]
+        try:
+            rtrace.rejected_facts = list(registry.rejected())
+        except Exception:
+            rtrace.rejected_facts = []
+        rtrace.llm_fallback = "; ".join(fb_reasons)
+        # D. deterministic financial state summary
+        rtrace.financial_state = {
+            "starting_balance": str(state.opening),
+            "minimum_balance": str(state.minimum),
+            "requested_amount": str(state.requested),
+            "home_currency": state.home,
+            "request_date": state.request_date.isoformat(),
+            "deadline": state.deadline.isoformat(),
+            "n_flows": len(state.flows),
+            "n_unknowns": len(state.unknowns),
+            "notes": [_redact(n)[:200] for n in list(state.notes)],
+        }
+        # E. forecast debug summary (base run without new payments)
+        try:
+            base = simulate(state, [])
+            rtrace.forecast = {
+                "horizon_days": WINDOW_DAYS,
+                "base_safe": bool(base.ok),
+                "min_closing": str(base.min_closing),
+                "min_balance_date": base.worst_day.isoformat() if base.worst_day else "",
+                "safe_today": str(safe),
+                "earliest_full": earliest.isoformat() if earliest else "",
+                "constraint": (
+                    "base obligations already breach the floor" if not base.ok
+                    else ("full safe never in window" if earliest is None else "ok")
+                ),
+            }
+        except Exception as _fe:
+            rtrace.forecast = {"error": f"{type(_fe).__name__}"}
+        # F/G/H. candidates, rejections, selection
+        eligible_ids = {id(c) for c in eligible}
+        validated_ids = {id(c) for c in validated}
+        winner_id = id(winner) if winner is not None else None
+        deadline = req_deadline(ctx)
+        rtrace.candidates = []
+        rtrace.rejected_plans = []
+        for c in candidates:
+            summary = _summarize_candidate(c)
+            summary["eligible"] = id(c) in eligible_ids
+            summary["safe"] = id(c) in validated_ids if id(c) in eligible_ids else None
+            rtrace.candidates.append(summary)
+            if id(c) == winner_id:
+                continue
+            rej = _eligibility_rejection(c, ctx.profile, ctx.request.get("allows_partial_payment"), deadline)
+            if rej is not None:
+                code, text = rej
+                rtrace.rejected_plans.append({
+                    "kind": c.kind, "payment_option_id": c.option_id,
+                    "reason_code": code, "reason": _redact(text)[:300],
+                })
+            elif id(c) not in validated_ids:
+                try:
+                    sim = simulate(state, c.payments, c.changes or {})
+                    when = sim.worst_day.isoformat() if sim.worst_day else ""
+                except Exception:
+                    when = ""
+                rtrace.rejected_plans.append({
+                    "kind": c.kind, "payment_option_id": c.option_id,
+                    "reason_code": "UNSAFE_MIN_BALANCE",
+                    "reason": f"minimum balance violated with this plan (worst day {when or 'unknown'})",
+                })
+            else:
+                rtrace.rejected_plans.append({
+                    "kind": c.kind, "payment_option_id": c.option_id,
+                    "reason_code": "OUTRANKED",
+                    "reason": (
+                        f"safe and eligible but lost deterministic 6-rule ranking to "
+                        f"{winner.kind}/{winner.option_id or 'n/a'}"
+                    ),
+                })
+        if winner is None:
+            rtrace.selected_plan = {
+                "selected": "none",
+                "reason": "no safe eligible candidate; safest fallback not_affordable/not_recommended",
+            }
+        else:
+            try:
+                from affordai.finance.optimizer import rank_key as _rank_key
+
+                _rk = _rank_key(winner, deadline)
+                rk = [str(x) for x in _rk]
+            except Exception:
+                rk = []
+            rtrace.selected_plan = {
+                "kind": winner.kind,
+                "selected_payment_option_id": winner.option_id,
+                "ranking_key": rk,
+                "reason": "deterministic 6-rule rank minimum (deadline, no-changes, min-total, earlier-start, fewer-payments, lowest-option-id)",
+            }
+        # I. final validated decision
+        rtrace.final_decision = {
+            "request_id": decision.request_id,
+            "amount_safe_to_pay": str(decision.amount_safe_to_pay),
+            "affordability_status": decision.affordability_status,
+            "recommended_payment_method": decision.recommended_payment_method,
+            "payment_plan": decision.payment_plan,
+            "earliest_date_for_full_payment": decision.earliest_date_for_full_payment,
+            "spending_changes_needed": decision.spending_changes_needed,
+            "n_evidence": len(decision.evidence),
+        }
+    except Exception as _te:
+        try:
+            rtrace.log_failure("trace-populate", f"{type(_te).__name__}: {_te}")
+        except Exception:
+            pass
+
+
+def req_deadline(ctx):
+    """Return the request deadline (date) for ranking/rejection text."""
+    return ctx.request.get("desired_completion_date")
 
 
 def _fallback_decision(
@@ -969,19 +1205,23 @@ def _decide_safe(
     dataset_dir: str,
     llm_config: LlmConfig,
     trace: Trace | None,
+    rtrace=None,
+    run_id: str = "E0",
 ) -> tuple[Decision, bool]:
     """Decide one request; on unexpected failure return the safe fallback."""
     try:
-        return decide_context(ctx, tables, dataset_dir, llm_config, trace), False
+        return decide_context(ctx, tables, dataset_dir, llm_config, trace, rtrace=rtrace, run_id=run_id), False
     except Exception as exc:  # never crash the batch; degrade to safest valid row
         if trace is not None:
             trace.record("decision-fallback", ctx.request_id, f"{type(exc).__name__}: {exc}"[:200])
+        if rtrace is not None:
+            rtrace.log_failure("decision-fallback", f"{type(exc).__name__}: {exc}")
         # Best-effort capacity preservation: try to compute safe/earliest even on failure
         safe_preserve: Decimal | None = None
         earliest_preserve = None
         try:
             # Re-derive minimal state for capacity (no LLM, deterministic)
-            registry, _, _ = _collect_evidence(ctx, os.path.join(dataset_dir, "media", "images"), llm_config, None)
+            registry, _, _, _ = _collect_evidence(ctx, os.path.join(dataset_dir, "media", "images"), llm_config, None)
             facts = registry.facts_for(ctx.request_id)
             cancelled = conflict_resolver.cancelled_event_ids(facts)
             extra_preserve: list[tuple] = []
@@ -1017,16 +1257,40 @@ def _decide_safe(
             earliest_preserve = earliest_full_date(state)
         except Exception:
             pass
-        return _fallback_decision(ctx, type(exc).__name__, safe_preserve, earliest_preserve), True
+        fb = _fallback_decision(ctx, type(exc).__name__, safe_preserve, earliest_preserve)
+        if rtrace is not None:
+            try:
+                rtrace.final_decision = {
+                    "request_id": fb.request_id,
+                    "amount_safe_to_pay": str(fb.amount_safe_to_pay),
+                    "affordability_status": fb.affordability_status,
+                    "recommended_payment_method": fb.recommended_payment_method,
+                    "payment_plan": fb.payment_plan,
+                    "earliest_date_for_full_payment": fb.earliest_date_for_full_payment,
+                    "spending_changes_needed": fb.spending_changes_needed,
+                    "n_evidence": 0,
+                }
+                rtrace.finish("fallback")
+            except Exception:
+                pass
+        return fb, True
 
 
 def run(
     dataset_dir: str,
     llm_config: LlmConfig | None = None,
     trace: Trace | None = None,
+    run_id: str = "E0",
+    request_traces: dict | None = None,
 ) -> tuple[list[Decision], dict]:
-    """Run the full deterministic pipeline. Returns (decisions, usage)."""
+    """Run the full deterministic pipeline. Returns (decisions, usage).
+
+    When `request_traces` (a plain dict) is supplied it is filled with one
+    ``RequestTrace`` per request (Sec 33) keyed by request_id, including the
+    output-row mapping (Sec 33.1J). Tracing never alters decisions.
+    """
     from affordai.evaluation.usage import UsageReport
+    from affordai.observability.request_trace import RequestTrace, make_trace_id
 
     llm_config = llm_config or load_config_from_env()
     tables = load_dataset(dataset_dir)
@@ -1036,18 +1300,42 @@ def run(
     all_records: list = []
     for ctx in contexts:
         recs: list = []
+        rtrace = None
+        if request_traces is not None:
+            import time as _time
+
+            rtrace = RequestTrace(
+                request_id=ctx.request_id,
+                original_row_index=ctx.original_index,
+                trace_id=make_trace_id(run_id, ctx.request_id, ctx.original_index),
+                run_id=run_id,
+                start_time=_time.time(),
+            )
+            request_traces[ctx.request_id] = rtrace
         try:
-            decision = decide_context(ctx, tables, dataset_dir, llm_config, trace, out_records=recs)
+            decision = decide_context(ctx, tables, dataset_dir, llm_config, trace, out_records=recs, rtrace=rtrace, run_id=run_id)
             failed = False
+            if rtrace is not None and rtrace.status == "pending":
+                rtrace.finish("ok")
         except Exception as exc:
             if trace is not None:
                 trace.record("decision-fallback", ctx.request_id, f"{type(exc).__name__}: {exc}"[:200])
-            decision, failed = _decide_safe(ctx, tables, dataset_dir, llm_config, trace)
+            decision, failed = _decide_safe(ctx, tables, dataset_dir, llm_config, trace, rtrace=rtrace, run_id=run_id)
             # recs already captured from the failing decide_context attempt (partial); keep them
         decisions.append(decision)
         fallbacks += int(failed)
         all_records.extend(recs)
     decisions.sort(key=lambda d: d.original_index)
+    if request_traces is not None:
+        # Sec 33.1J: output-row mapping (CSV row order == sorted-by-original_index order).
+        for row_index, d in enumerate(decisions):
+            rt = request_traces.get(d.request_id)
+            if rt is not None:
+                rt.output_row = {
+                    "output_row_index": row_index,
+                    "request_id": d.request_id,
+                    "validation_status": "decision-invariant-pass; csv-validator-see-scripts/validate_output.py",
+                }
     total_in = sum(getattr(r, "input_tokens", 0) for r in all_records)
     total_out = sum(getattr(r, "output_tokens", 0) for r in all_records)
     total_calls = len(all_records)

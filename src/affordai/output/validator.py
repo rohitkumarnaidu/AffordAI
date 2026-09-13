@@ -18,7 +18,6 @@ Rule: ANY hard validation failure = FINAL SUBMISSION BLOCKED (Section 26.9,
 from __future__ import annotations
 
 import csv
-import math
 import re
 from dataclasses import dataclass
 from datetime import datetime
@@ -162,36 +161,6 @@ def validate_files(requests_path: str, output_path: str) -> list[str]:
     if extra:
         errors.append(f"OUTPUT-ID-004/error: extra request_ids in output not in requests: {sorted(extra)[:5]}")
     return errors
-
-
-def _parse_plan(plan: str, rid: str, errors: list[str]) -> list[tuple] | None:
-    """Parse YYYY-MM-DD:amount|... ; 'none' -> []. None on malformed."""
-    if plan == "none":
-        return []
-    legs: list[tuple] = []
-    for leg in plan.split("|"):
-        parts = leg.split(":")
-        if len(parts) != 2:
-            errors.append(f"{rid}: malformed plan leg {leg!r}")
-            return None
-        try:
-            day = datetime.strptime(parts[0], "%Y-%m-%d").date()
-        except ValueError:
-            errors.append(f"{rid}: bad plan date {parts[0]!r}")
-            return None
-        try:
-            amount = float(parts[1])
-        except ValueError:
-            errors.append(f"{rid}: bad plan amount {parts[1]!r}")
-            return None
-        if amount <= 0:
-            errors.append(f"{rid}: non-positive plan amount {parts[1]!r}")
-            return None
-        legs.append((day, amount))
-    if [d for d, _ in legs] != sorted(d for d, _ in legs):
-        errors.append(f"{rid}: plan not chronological")
-        return None
-    return legs
 
 
 def _parse_plan(plan: str, rid: str, errors: list[str]) -> list[tuple] | None:
