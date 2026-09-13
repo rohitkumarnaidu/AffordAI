@@ -1,0 +1,51 @@
+# Decision Matrix — input → output rules
+
+Companion to `specification.md`. No code may contradict this file.
+
+## A. Status × method allowed pairs
+
+| status | allowed methods | notes |
+|---|---|---|
+| `affordable_now` | `full_payment` | full safe today + user accepts full; `earliest == request_date`; plan = `request_date:requested` |
+| `affordable_with_plan` | `partial_payment` (strict 5-conds), `installments` (exact option match), `full_payment` iff spending changes make today safe | full completed via plan/changes |
+| `affordable_later` | `wait` | full safe later ≤ forecast; plan = `earliest:requested` (single future payment); `earliest > request_date` |
+| `not_affordable` | `not_recommended` | plan `none`, `earliest` empty, `safe` may be >0 but < requested |
+
+`partial_payment ⇒ affordable_with_plan` (never with other statuses).
+`earliest` empty ⇔ `not_affordable` (or never-safe edge). `wait` plan is a single future
+full payment on `earliest`, NOT an installment schedule.
+
+## B. Method eligibility (before ranking)
+
+- `full/partial/installments` require membership in `payment_methods_user_will_consider`.
+- `installments` additionally require `max_installment_months` non-blank and option term compatible;
+  option may still be rejected on preference/term conflict.
+- Partial additionally requires `allows_partial_payment == true`, `0 < safe < requested`,
+  `earliest <= desired_completion_date`, exact 2-payment shape summing to requested.
+- `wait` requires future-safe full + user accepts `full_payment`.
+- Else `not_recommended` (`none`, changes `none` unless changes alone can't complete → still `none`).
+
+## C. 90-day gate (every candidate)
+
+Simulate with essentials + recurring + confirmed futures + candidate payments.
+REJECT candidate if any day `closing < minimum`, or completion `> desired_completion_date`
+(except `not_recommended`), or FX/date arithmetic unvalidated.
+
+## D. Ranking (first match wins)
+
+1. completes by deadline 2. no spending changes 3. min total paid (incl. fees)
+4. earlier first-payment date 5. fewer payments 6. lowest `payment_option_id`.
+
+## E. Spending changes
+
+Only flexible recurring events in willing categories; ≤3; no same-event stop+reduce;
+each change re-simulated (must flip an unsafe plan safe or be omitted).
+
+## F. Conflicts
+
+cancel/settle/amend > newer same-source > settled > safer. LLM never reorders this.
+
+## G. Amounts/dates
+
+`0 <= safe <= requested`; `safe` computed WITHOUT optional changes; `earliest` WITHOUT
+optional changes; capped/rounded in home currency to 2dp (IDR 0dp convention TBD in inventory).
