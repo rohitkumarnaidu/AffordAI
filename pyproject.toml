@@ -1,0 +1,19 @@
+[project]
+name = "affordai"
+version = "0.1.0"
+description = "AffordAI — AI Financial Affordability & Payment Planner (HackerRank Orchestrate September 2026 — Buy or Wait?)"
+requires-python = ">=3.11"
+dependencies = [
+  "pandas>=2.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+ai = ["pillow>=10.0"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
