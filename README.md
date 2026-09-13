@@ -116,7 +116,7 @@ python scripts/eval_report.py --tag final
 python scripts/clean_room_run.py  # fresh-subprocess reproducibility gate
 python scripts/trace_request.py --request request_30 --dataset dataset/official  # alias: --request-id also works
 python scripts/benchmark.py       # stage timings (full run ~2.4s, ~8ms/req)
-python -m pytest tests -q         # 357 tests (unit/integration/edge/adversarial/regression/e2e/contract/security)
+python -m pytest tests -q         # 375 tests (unit/integration/edge/adversarial/regression/e2e/contract/security)
 ```
 
 Entry point: `scripts/build_output.py` → `src/affordai/pipeline.py:run`.
@@ -127,7 +127,7 @@ Official HackerRank scoring is hidden/UNKNOWN; nothing here claims to be it.
 Local harness (`src/affordai/evaluation/`, `evaluation/README.md`) measures 9
 metrics (structural/numerical/decision/plan/evidence/explanation/robustness/
 tokens/cost) over 5 sets (25 samples as format examples only, edge, adversarial
-29, regression 15 groups, full 250). Current: 357 tests green, validator PASS,
+29, regression 15 groups, full 250). Current: 375 tests green, validator PASS,
 replay byte-identical (`d8386548517835c9`), clean-room PASS. Ablation E0→E7 in
 `evaluation/reports/ablation_results.*`; keep-a-component-only-on-measured-win.
 Full definitions: `docs/evaluation-strategy.md`.
