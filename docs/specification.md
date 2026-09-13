@@ -103,6 +103,25 @@ Rank safe eligible plans:
 - Conflict precedence: (1) explicit cancellation/settlement/amendment (2) newer record
   same source (3) settled over estimate/forecast (4) financially safer interpretation.
 
+## 7. Implementation assumptions (VERIFIED vs UNPROVEN)
+
+- VERIFIED from data: 16 blank amounts ↔ 16 images 1:1; 5 directed FX pairs;
+  `sent_at` is ISO datetime; preference lists split on `|`; 90-day window is
+  `[request_date, request_date+89]`; money serializes bare-integer or 2dp.
+- IMPLEMENTED (E0, defensible, residual risk noted): income counts only
+  scheduled/settled-future rows plus narrowly message-confirmed salary
+  (employer + confirm semantics + salary keywords; deny-first; routine-amount
+  fallback); history salary is NOT projected (sample request_05 decisive).
+  Expense/subscription recurrence via monthly/weekly cadence plus flexible
+  same-description repetition (≥2, gap ≥7d); debt/investment obligations never
+  inferred; installment term ≈ span_days ≤ months×31; pending debits reserved
+  at request_date; blank settlement_date falls back to event_date (10 rows).
+- UNPROVEN: grocery/transport amount medians vs official conservative
+  estimates (±3% calibration noise); variable-spending conservatism rule;
+  salary-day tie-breaks; prize/ambiguous-credit handling; rent-bump and
+  new-deduction messages (ignored, documented); earliest==deadline
+  coincidences in 2 sample rows.
+
 ## 7. Submission
 
 `code.zip` (runnable code + prompts/config + README + `evaluation/`), root `output.csv`

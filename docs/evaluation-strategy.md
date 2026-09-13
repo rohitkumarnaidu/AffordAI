@@ -38,3 +38,12 @@ no invented numbers/dates; status↔method↔plan↔earliest consistency.
 | E7 | +token trim | | | | | | |
 
 Results → `evaluation/reports/`. Token/cost of FINAL run → `evaluation/usage_report.md`.
+
+## Measured E0 baseline (2026-09-13, deterministic, 25 sample rows)
+
+status 0.44 / method 0.56 / earliest-exact 0.36. Samples are illustrative
+format examples, NOT eval labels — used for shape/calibration diagnostics
+only (this run exposed and fixed: Tier-1 earliest rule, pipe-split
+preferences, payroll-ref amount poisoning, salary-amount linkage).
+Full eval run: 250 rows, ~2.4s, validator PASS (structural + plan),
+byte-identical double-run replay.

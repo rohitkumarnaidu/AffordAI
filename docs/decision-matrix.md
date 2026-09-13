@@ -12,8 +12,11 @@ Companion to `specification.md`. No code may contradict this file.
 | `not_affordable` | `not_recommended` | plan `none`, `earliest` empty, `safe` may be >0 but < requested |
 
 `partial_payment ⇒ affordable_with_plan` (never with other statuses).
-`earliest` empty ⇔ `not_affordable` (or never-safe edge). `wait` plan is a single future
-full payment on `earliest`, NOT an installment schedule.
+`earliest` measures capacity independently of preferences/deadline (Tier 1):
+it may be set even for `not_affordable` (capacity exists later, e.g. past the
+deadline, but no eligible plan completes safely) or equal `request_date` under
+installments. Empty `earliest` ⇔ full payment never safe within forecast.
+`wait` plan is a single future full payment on `earliest`, NOT an installment schedule.
 
 ## B. Method eligibility (before ranking)
 

@@ -33,17 +33,28 @@ See `docs/architecture.md` and `docs/specification.md`.
 ```bash
 pip install -e ".[dev]"
 python scripts/build_output.py --dataset dataset/official --out output.csv
-python scripts/validate_output.py --requests dataset/official/requests.csv --output output.csv
+python scripts/validate_output.py --requests dataset/official/requests.csv --output output.csv --dataset dataset/official
 python scripts/evaluate.py  # local proxy on sample_requests.csv (NOT official score)
+python scripts/clean_room_run.py  # fresh-env build + validate
 ```
+
+Entry point: `scripts/build_output.py` (loads `dataset/official`, runs the
+deterministic pipeline in `src/affordai/pipeline.py`, writes root `output.csv`).
 
 ## Evaluation / cost
 
-Local metrics are proxies only — see `docs/evaluation-strategy.md`.
-Token/cost accounting for the final full-dataset run lives in `evaluation/usage_report.md`.
+Local proxy on the 25 sample rows (E0 deterministic, NOT official score):
+status 0.44 / method 0.56 / earliest-exact 0.36. Samples are illustrative
+format examples, not eval labels.
+Token/cost accounting for the final full-dataset run lives in `evaluation/usage_report.md`
+(250 rows, ~2.4s wall, 0 model calls, deterministic, byte-identical replay).
 
 ## Safety
 
 - No secrets in git (`.env` ignored, `.env.example` committed).
 - Official data never modified; messages/images treated as untrusted evidence.
-- Known limitations are tracked in `evaluation/final_report.md` (once generated).
+- Known limitations: income is scheduled/settled-future plus narrowly
+  message-confirmed salary only (no history-projected salary — see
+  `docs/specification.md` assumptions); image amounts resolve only via the
+  vision adapter when enabled, otherwise stay unknown (never zero);
+  `docs/build-checklist.md` tracks the full gate.

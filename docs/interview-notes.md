@@ -25,3 +25,24 @@ Files: `src/affordai/pipeline.py` orchestrates; `ingestion/` resolves;
 - **Conflicts?** Fixed 4-rule order, tested adversarially.
 - **Injection?** Raw text never reaches rule engine.
 - **Not built?** Multi-agent, dashboard, DB, 2nd provider — no measured win (ablation table).
+
+## Built components (E0 deterministic, 2026-09-13)
+
+- **Money (`finance/money.py`)**: Decimal-only, ROUND_HALF_UP, 2dp scale from
+  samples; why: float cannot represent decimals exactly; rejected integer-cents
+  (FX needs fractional precision). Test: midpoint/serialization unit tests.
+- **Ingestion (`ingestion/`)**: typed loaders, fail-clear on malformed data;
+  blank amounts stay None (never zero). Failure found live: `sent_at` is ISO
+  datetime, `|`-separated preferences — fixed + regression-tested.
+- **Forecast (`finance/forecast.py`)**: daily ledger, floor every day, minor-unit
+  binary search for safe amount, forward scan for earliest. Limitation: income =
+  scheduled + message-confirmed only (request_05 decisive).
+- **Recurrence (`finance/timeline.py`)**: monthly/weekly cadence + flexible
+  same-description repetition; debt/investment/income never inferred.
+  Trade-off: ±3% calibration noise on variable spending (documented).
+- **Evidence (`evidence/`)**: typed facts + ownership registry; regex baseline;
+  payroll-ref poisoning fixed; deny-first salary confirmation; adapter proposes,
+  code disposes. LLM never touches arithmetic/ranking (no backend wired in E0).
+- **Ranking (`finance/optimizer.py`)**: official 6-rule key, exact; tested ties.
+- **Validator (`output/validator.py`)**: structural + plan layers re-derived from
+  CSVs (Tier-1 earliest fix: not_affordable MAY carry earliest).
