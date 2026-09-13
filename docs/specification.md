@@ -12,7 +12,7 @@ recurring/pending/confirmed flows, payment options, preferences, priorities,
 flexible-spending willingness, messages, images, history, FX, and desired completion date.
 The recommendation must be safe across the 90-day forecast and personalized.
 
-## 2. Inputs (`dataset/official/` — READ-ONLY)
+## 2. Inputs (`dataset/official/` locally; `dataset/` upstream — READ-ONLY)
 
 | File | Grain | Joins |
 |---|---|---|
@@ -26,6 +26,8 @@ The recommendation must be safe across the 90-day forecast and personalized.
 | `images.csv` + `media/images/<image_id>.png` | linked evidence | `user_id`, `request_id`, `related_event_id` |
 | `output.csv` (template) | blank submission shape | — |
 
+> **Path note (Phase 4 verified):** upstream Tier-1 contract is `dataset/requests.csv` (see `git ls-tree upstream/main` + `problem_statement.md Files provided`). Local fork uses `dataset/official/requests.csv` (`git ls-files -- dataset`). Both layouts are supported: `src/affordai/pipeline.py:_resolve_dataset_path` tries `dataset_dir/filename` then `dataset_dir/official/filename` (and reverse). Evaluator may provide either layout; do not hardcode one prefix.
+
 Request fields: `request_id, user_id, request_date, request_type
 (purchase|travel|education|family_transfer|debt_repayment|investment|housing|emergency_expense|other),
 requested_amount, desired_completion_date, allows_partial_payment (bool), request_text`.
@@ -33,10 +35,10 @@ Profile fields include `home_currency (INR|ZAR|IDR|USD|EUR)`, `current_available
 `minimum_balance_to_keep`, `financial_priorities`, `expense_categories_to_protect`,
 `expense_categories_user_is_willing_to_reduce/_stop`, `payment_methods_user_will_consider`,
 `max_installment_months` (blank = will not consider installments).
-Payment-option fields: `payment_method, payment_amount, number_of_payments,
+Payment-option fields: `payment_option_id, request_id, payment_method, payment_amount, number_of_payments,
 first_payment_date, payment_frequency_days, financing_fee, total_payable_amount`.
 All dates `YYYY-MM-DD`. All money I/O in `home_currency`; convert foreign cash events with
-the rate row for the event's settlement date and stated direction.
+the rate row for the event's settlement date and stated direction — **UNPROVEN assumption A1**: latest row **on or before** settlement for the **exact directed pair** (no inverse synthesis); exact match holds for all 140 foreign cash events in this dataset but off-cycle settlement would require fallback (see `evaluation/reports/data_inventory.md §6` and `docs/data-model.md`).
 
 ## 3. Required output (`output.csv`, root)
 
@@ -103,24 +105,22 @@ Rank safe eligible plans:
 - Conflict precedence: (1) explicit cancellation/settlement/amendment (2) newer record
   same source (3) settled over estimate/forecast (4) financially safer interpretation.
 
-## 7. Implementation assumptions (VERIFIED vs UNPROVEN)
+## 7. Implementation assumptions (VERIFIED vs UNPROVEN) — Phase 4 audited 2026-09-13
 
-- VERIFIED from data: 16 blank amounts ↔ 16 images 1:1; 5 directed FX pairs;
-  `sent_at` is ISO datetime; preference lists split on `|`; 90-day window is
-  `[request_date, request_date+89]`; money serializes bare-integer or 2dp.
+- VERIFIED from data (reproducible, see `evaluation/reports/data_inventory.md` + `dataset_regression_snapshot.json`): 16 blank `financial_events.amount` ↔ 16 `images.csv:related_event_id` ↔ 16 PNGs 1:1:1 (hashes `f94255ba…` etc.); 5 directed FX pairs `USD→INR/IDR/EUR, EUR→USD/ZAR` (134 rows, 39 dates `2023-10-15→2026-11-15` + `2025-10-01`); `sent_at` ISO `YYYY-MM-DDTHH:MM:SSZ`; preference lists `|`-split; 90-day window `[request_date, request_date+89]` inclusive (spec §4); money bare-integer or 2dp (IDR `15952906.67` observed); all PKs unique, 0 orphans eval-partition (see `evaluation/reports/join_integrity.md`).
 - IMPLEMENTED (E0, defensible, residual risk noted): income counts only
   scheduled/settled-future rows plus narrowly message-confirmed salary
   (employer + confirm semantics + salary keywords; deny-first; routine-amount
   fallback); history salary is NOT projected (sample request_05 decisive).
   Expense/subscription recurrence via monthly/weekly cadence plus flexible
   same-description repetition (≥2, gap ≥7d); debt/investment obligations never
-  inferred; installment term ≈ span_days ≤ months×31; pending debits reserved
-  at request_date; blank settlement_date falls back to event_date (10 rows).
-- UNPROVEN: grocery/transport amount medians vs official conservative
+  inferred; installment term ≈ span_days ≤ months×31 (31d approximation — **UNPROVEN**); pending debits reserved
+  at request_date; blank settlement_date falls back to event_date (10 `unrealized` rows, then ignored).
+- UNPROVEN (explicit, not guessed): **A1 FX** latest-on-or-before exact pair (holds 140/140 today, off-cycle would fallback); 90-day inclusive bound (`+89` vs `+90`); `max_installment_months` semantics (31d/month); grocery/transport medians vs official conservative
   estimates (±3% calibration noise); variable-spending conservatism rule;
   salary-day tie-breaks; prize/ambiguous-credit handling; rent-bump and
   new-deduction messages (ignored, documented); earliest==deadline
-  coincidences in 2 sample rows.
+  coincidences in 2 sample rows; `streaming`/`gym` dual willingness (41 profiles) — per-event exclusive only.
 
 ## 8. Submission
 

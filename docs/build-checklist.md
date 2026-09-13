@@ -183,3 +183,56 @@ Row mismatch · duplicate/missing request · floor violation · fabricated evide
 bad schedule · deadline violation · unsupported method · invented installments ·
 blank-as-zero · LLM in arithmetic/ranking · explanation≠decision · secrets committed ·
 transcript bad · usage report missing · clean-room failure · critical regression open.
+
+---
+
+## PHASE 4+5 VERIFICATION — 2026-09-13 — GREEN (zero-trust, 5-agent audit, re-verified)
+
+> Evidence: `evaluation/reports/data_inventory.md` (machine-verifiable, hashes, row counts), `evaluation/reports/join_integrity.md`, `evaluation/reports/dataset_regression_snapshot.json`, `src/affordai/decision/invariants.py` (strict Tier-1), `src/affordai/pipeline.py:_resolve_dataset_path` (dual-layout), `tests/contract/test_phase45_contract.py` (32 tests), `python scripts/validate_output.py PASS`, `python scripts/clean_room_run.py PASS`, `pytest 76 passed`.
+
+### 4.1 Inputs (§30)
+- [x] `requests.csv` — exists, readable, 250 rows, header exact, 0 nulls, PK unique, used by `pipeline.py`
+- [x] `sample_requests.csv` — 25 rows, header 15 cols, used as style reference only
+- [x] `financial_profiles.csv` — 275 rows, header exact, nulls 39/62/119 as documented, PK unique, FK `user_id` resolved
+- [x] `financial_events.csv` — 25342 rows, header exact, nulls 16/10/25284/22435, PK unique, all `user_id` resolve
+- [x] `request_payment_options.csv` — 790 rows (275 requests ×2–4), header exact, nulls 275, PK unique, FK 0 orphans eval
+- [x] `exchange_rates.csv` — 134 rows, header exact, composite PK unique 134, 5 directed pairs, 39 dates, 0 orphans
+- [x] `messages.csv` — 215 rows, header exact, nulls 87/176, PK unique, 0 orphans eval (12 superset sample valid)
+- [x] `images.csv` — 16 rows, header exact, PK unique, 0 orphans, 16 PNGs present
+- [x] `media/images/` — 16 PNGs, sizes 111KB–756KB, magic valid, 0 missing
+
+### 4.2 Output columns (§6) — exact order, spelling, validator `OUTPUT_COLUMNS`
+- [x] `request_id` | [x] `amount_safe_to_pay` | [x] `affordability_status` | [x] `recommended_payment_method`
+- [x] `payment_plan` | [x] `earliest_date_for_full_payment` | [x] `spending_changes_needed` | [x] `decision_explanation`
+- Verified: `output.csv:1` header `b'request_id,amount_safe_to_pay,...'` matches `src/affordai/decision/decision.py:34` byte-for-byte; no extra/missing/renamed.
+
+### 4.3 Enums (§7) — Tier-1 exact, validator rejects invented
+- [x] `affordability_status ∈ {affordable_now, affordable_with_plan, affordable_later, not_affordable}` — `STATUSES` correct, samples 9/7/6/3, rejects `affordable`/`maybe`
+- [x] `recommended_payment_method ∈ {full_payment, partial_payment, installments, wait, not_recommended}` — `METHODS` correct, rejects `installment`/`none`
+- Verified via `invariants.py:13-20` strict allowed-map and `validator.py:52-55` live rejection (tests `test_validator_rejects_invented_enums` PASS).
+
+### 4.4 Cardinality (§8) — `EXPECTED_IDS == OUTPUT_IDS` ordered
+- [x] one row per request — `requests 250 == output 250`
+- [x] expected request count verified — `requests.csv` 250 via `wc -l` + `DictReader`
+- [x] output count equals request count — `output.csv` 250
+- [x] no missing request — `set(req)==set(out)` PASS
+- [x] no duplicate request — PK unique, `duplicate` test PASS
+- [x] ordering verified — `req_ids == out_ids` ordered (reverse test correctly FAILS), `original_index` preserved via `RequestContext`
+
+### 5.1 File-level (§11) — all CSVs
+- [x] row counts | [x] columns | [x] dtypes | [x] nulls | [x] duplicates | [x] date ranges | [x] currencies — see `data_inventory.md` Table 0–1, every cell reproducible
+
+### 5.2 Requests (§12) | 5.3 Profiles (§13) | 5.4 Events (§14) | 5.5 Payment options (§15) | 5.6 FX (§16) | 5.7 Messages (§17) | 5.8 Images (§18)
+All `[x]` — see `data_inventory.md` §§2–8 and `join_integrity.md` §§1–9; every reported number machine-verifiable; unknowns explicitly listed as `UNPROVEN` (A1 FX, recurrence ±3%, IDR 2dp, OCR threshold, etc.).
+
+### Validation gate (Phase 4+5)
+- `python scripts/validate_output.py --dataset dataset/official` → `PASS (structural + plan)`
+- `python scripts/clean_room_run.py` → `CLEAN-ROOM PASS (fresh subprocess, scrubbed env, temp dir)`
+- `pytest tests -q` → `76 passed` (incl. `tests/contract/test_phase45_contract.py` 32)
+- `git diff -- dataset` → 0 changes (dataset immutable)
+- Dual-layout support → `load_dataset('dataset')` and `load_dataset('dataset/official')` both PASS
+
+### Remaining unknowns (explicit, not guessed) — YELLOW if any, GREEN only if documented
+A1 FX latest-on-before exact pair, installment `months*31` approximation, 90-day inclusive `+89`, recurrence thresholds, `streaming`/`gym` dual willingness, prize lure handling — all in `docs/specification.md §7` with `[UNPROVEN]` tag.
+
+**Final gate for Phase 4+5: GREEN — contract verified, dataset inventory complete, joins verified, cardinality ordered, unknowns documented, dataset unchanged, tests pass, evidence reproducible.**

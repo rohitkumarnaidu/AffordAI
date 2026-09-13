@@ -1,0 +1,287 @@
+{
+  "generated_at": "2026-09-13T15:30:00+05:30",
+  "source": "dataset/official (byte-identical to upstream/main:dataset)",
+  "files": {
+    "requests.csv": {
+      "sha256": "f94255baa9f55857fea57b09c00a7e970c4a80ece4bf1c412fbf5fbe8225f78b",
+      "sha256_short": "f94255baa9f55857",
+      "rows": 250,
+      "columns": [
+        "request_id",
+        "user_id",
+        "request_date",
+        "request_type",
+        "requested_amount",
+        "desired_completion_date",
+        "allows_partial_payment",
+        "request_text"
+      ],
+      "nulls": {
+        "request_id": 0,
+        "user_id": 0,
+        "request_date": 0,
+        "request_type": 0,
+        "requested_amount": 0,
+        "desired_completion_date": 0,
+        "allows_partial_payment": 0,
+        "request_text": 0
+      },
+      "pk_unique": true
+    },
+    "sample_requests.csv": {
+      "sha256": "1195bbe962e62a3eafa1118efc5fdef3f5fac0bf70009e6e59dab75b9228c5dc",
+      "sha256_short": "1195bbe962e62a3e",
+      "rows": 25,
+      "columns": [
+        "request_id",
+        "user_id",
+        "request_date",
+        "request_type",
+        "requested_amount",
+        "desired_completion_date",
+        "allows_partial_payment",
+        "request_text",
+        "amount_safe_to_pay",
+        "affordability_status",
+        "recommended_payment_method",
+        "payment_plan",
+        "earliest_date_for_full_payment",
+        "spending_changes_needed",
+        "decision_explanation"
+      ],
+      "nulls": {
+        "request_id": 0,
+        "user_id": 0,
+        "request_date": 0,
+        "request_type": 0,
+        "requested_amount": 0,
+        "desired_completion_date": 0,
+        "allows_partial_payment": 0,
+        "request_text": 0,
+        "amount_safe_to_pay": 0,
+        "affordability_status": 0,
+        "recommended_payment_method": 0,
+        "payment_plan": 0,
+        "earliest_date_for_full_payment": 7,
+        "spending_changes_needed": 0,
+        "decision_explanation": 0
+      },
+      "pk_unique": true
+    },
+    "financial_profiles.csv": {
+      "sha256": "b91b4ccbda3d5af99bf87c313e367f25cde5b2338a2fedafcd8f71550cf86500",
+      "sha256_short": "b91b4ccbda3d5af9",
+      "rows": 275,
+      "columns": [
+        "user_id",
+        "home_currency",
+        "current_available_balance",
+        "minimum_balance_to_keep",
+        "financial_priorities",
+        "expense_categories_to_protect",
+        "expense_categories_user_is_willing_to_reduce",
+        "expense_categories_user_is_willing_to_stop",
+        "payment_methods_user_will_consider",
+        "max_installment_months"
+      ],
+      "nulls": {
+        "user_id": 0,
+        "home_currency": 0,
+        "current_available_balance": 0,
+        "minimum_balance_to_keep": 0,
+        "financial_priorities": 0,
+        "expense_categories_to_protect": 0,
+        "expense_categories_user_is_willing_to_reduce": 39,
+        "expense_categories_user_is_willing_to_stop": 62,
+        "payment_methods_user_will_consider": 0,
+        "max_installment_months": 119
+      },
+      "pk_unique": true
+    },
+    "financial_events.csv": {
+      "sha256": "f6a7ccf24d9bfd4a019977ea88a9086e5851b3565b1816890fee5023bbd25f1f",
+      "sha256_short": "f6a7ccf24d9bfd4a",
+      "rows": 25342,
+      "columns": [
+        "event_id",
+        "user_id",
+        "event_type",
+        "description",
+        "category",
+        "direction",
+        "amount",
+        "currency",
+        "event_date",
+        "settlement_date",
+        "status",
+        "linked_event_id",
+        "flexibility",
+        "minimum_allowed_amount"
+      ],
+      "nulls": {
+        "event_id": 0,
+        "user_id": 0,
+        "event_type": 0,
+        "description": 0,
+        "category": 0,
+        "direction": 0,
+        "amount": 16,
+        "currency": 0,
+        "event_date": 0,
+        "settlement_date": 10,
+        "status": 0,
+        "linked_event_id": 25284,
+        "flexibility": 0,
+        "minimum_allowed_amount": 22435
+      },
+      "pk_unique": true
+    },
+    "request_payment_options.csv": {
+      "sha256": "aedadf63a13f5dd002934823090f543f17f42eff05f2953a1baae01d8ac91f22",
+      "sha256_short": "aedadf63a13f5dd0",
+      "rows": 790,
+      "columns": [
+        "payment_option_id",
+        "request_id",
+        "payment_method",
+        "payment_amount",
+        "number_of_payments",
+        "first_payment_date",
+        "payment_frequency_days",
+        "financing_fee",
+        "total_payable_amount"
+      ],
+      "nulls": {
+        "payment_option_id": 0,
+        "request_id": 0,
+        "payment_method": 0,
+        "payment_amount": 0,
+        "number_of_payments": 0,
+        "first_payment_date": 0,
+        "payment_frequency_days": 275,
+        "financing_fee": 0,
+        "total_payable_amount": 0
+      },
+      "pk_unique": true
+    },
+    "exchange_rates.csv": {
+      "sha256": "3de3877e48707fea1c9cd62d1931d8cc6352992ff9549ad41a1580649b1bf3e3",
+      "sha256_short": "3de3877e48707fea",
+      "rows": 134,
+      "columns": [
+        "rate_date",
+        "from_currency",
+        "to_currency",
+        "rate"
+      ],
+      "nulls": {
+        "rate_date": 0,
+        "from_currency": 0,
+        "to_currency": 0,
+        "rate": 0
+      },
+      "pk_unique": false
+    },
+    "messages.csv": {
+      "sha256": "fd9e3a1acb604f9a855153344539e9eefa71076faabb8c427d107f4724ef52a3",
+      "sha256_short": "fd9e3a1acb604f9a",
+      "rows": 215,
+      "columns": [
+        "message_id",
+        "user_id",
+        "request_id",
+        "related_event_id",
+        "sent_at",
+        "source_type",
+        "message_text"
+      ],
+      "nulls": {
+        "message_id": 0,
+        "user_id": 0,
+        "request_id": 87,
+        "related_event_id": 176,
+        "sent_at": 0,
+        "source_type": 0,
+        "message_text": 0
+      },
+      "pk_unique": true
+    },
+    "images.csv": {
+      "sha256": "c5a3f1686b1f98acf9f884aacf512f97f75a7923b066892ca90f7d2d34baa1f9",
+      "sha256_short": "c5a3f1686b1f98ac",
+      "rows": 16,
+      "columns": [
+        "image_id",
+        "user_id",
+        "request_id",
+        "related_event_id"
+      ],
+      "nulls": {
+        "image_id": 0,
+        "user_id": 0,
+        "request_id": 0,
+        "related_event_id": 0
+      },
+      "pk_unique": true
+    },
+    "output.csv": {
+      "sha256": "ee979aa8cc1b77040b2bf6da2350b313ebe95ce263cab679761293c102ac992d",
+      "sha256_short": "ee979aa8cc1b7704",
+      "rows": 250,
+      "columns": [
+        "request_id",
+        "amount_safe_to_pay",
+        "affordability_status",
+        "recommended_payment_method",
+        "payment_plan",
+        "earliest_date_for_full_payment",
+        "spending_changes_needed",
+        "decision_explanation"
+      ],
+      "nulls": {
+        "request_id": 0,
+        "amount_safe_to_pay": 250,
+        "affordability_status": 250,
+        "recommended_payment_method": 250,
+        "payment_plan": 250,
+        "earliest_date_for_full_payment": 250,
+        "spending_changes_needed": 250,
+        "decision_explanation": 250
+      },
+      "pk_unique": true
+    }
+  },
+  "media_images": {
+    "count": 16,
+    "files": [
+      "image_01.png",
+      "image_02.png",
+      "image_03.png",
+      "image_04.png",
+      "image_05.png",
+      "image_06.png",
+      "image_07.png",
+      "image_08.png",
+      "image_09.png",
+      "image_10.png",
+      "image_11.png",
+      "image_12.png",
+      "image_13.png",
+      "image_14.png",
+      "image_15.png",
+      "image_16.png"
+    ]
+  },
+  "requests_range": {
+    "min": "2023-01-20",
+    "max": "2026-09-04",
+    "desired_min": "2023-02-13",
+    "desired_max": "2026-10-19"
+  },
+  "events_range": {
+    "min": "2019-03-09",
+    "max": "2026-09-03",
+    "settlement_min": "2019-03-09",
+    "settlement_max": "2026-09-03"
+  }
+}

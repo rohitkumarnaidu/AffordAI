@@ -55,8 +55,26 @@ class RequestContext:
     evidence: list = field(default_factory=list)
 
 
+def _resolve_dataset_path(dataset_dir: str, filename: str) -> str:
+    """Support both upstream `dataset/` and local `dataset/official/` layouts."""
+    direct = os.path.join(dataset_dir, filename)
+    if os.path.exists(direct):
+        return direct
+    nested = os.path.join(dataset_dir, "official", filename)
+    if os.path.exists(nested):
+        return nested
+    # If dataset_dir itself is already .../official but caller passed parent,
+    # also try stripping official
+    if dataset_dir.endswith("official"):
+        parent = os.path.dirname(dataset_dir)
+        alt = os.path.join(parent, filename)
+        if os.path.exists(alt):
+            return alt
+    return direct  # let loader raise clear DatasetError
+
+
 def load_dataset(dataset_dir: str) -> dict:
-    j = lambda *p: os.path.join(dataset_dir, *p)
+    j = lambda *p: _resolve_dataset_path(dataset_dir, os.path.join(*p))
     requests = ingest_requests.load(j("requests.csv"))
     tables = {
         "requests": requests,
