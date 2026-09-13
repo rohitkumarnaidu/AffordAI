@@ -10,8 +10,9 @@
 - **financial_events** (`event_id` PK): `user_id FK`, `event_type`, `description`, `category`,
   `direction (debit|credit)`, `amount` (nullable → image), `currency`, `event_date`,
   `settlement_date`, `status` (settled|pending|scheduled|failed|cancelled|unrealized… — confirm in inventory),
-  `linked_event_id` (→ earlier event, same lifecycle; link alone ≠ cash-flow verdict),
-  `flexibility (fixed|flexible…)`, `minimum_allowed_amount`.
+   `linked_event_id` (→ earlier event, same lifecycle; link alone ≠ cash-flow verdict),
+   `flexibility (fixed|reducible|stoppable|reducible_or_stoppable)`,
+   `minimum_allowed_amount` (set for reducible/reducible_or_stoppable only).
 - **request_payment_options** (`payment_option_id` PK): `request_id FK`, schedule
   (`payment_amount × number_of_payments`, `first_payment_date`, `payment_frequency_days`),
   `financing_fee`, `total_payable_amount`.

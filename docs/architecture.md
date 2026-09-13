@@ -5,11 +5,11 @@ REQUEST
   ↓
 DATA RESOLVER (ingestion/ — joins only, stamps original_index)
   ↓
-EVIDENCE RESOLVER (evidence/ — ★ AI-ASSISTED, validated)
+EVIDENCE RESOLVER (evidence/ — deterministic in E0; AI-gated E1+)
  ├── structured data (deterministic)
- ├── messages (regex baseline → targeted LLM for ambiguity)
- └── images (only when needed, esp. blank amounts)
-  ↓
+ ├── messages (regex baseline; targeted LLM for ambiguity only via adapter, E1+)
+ └── images (only when needed, esp. blank amounts; extraction via adapter, E1+)
+   ↓
 CANONICAL FINANCIAL STATE (finance/state.py — deterministic)
   ↓
 90-DAY FORECAST ENGINE (finance/forecast.py + timeline.py — deterministic)
@@ -22,7 +22,8 @@ PLAN RANKING / OPTIMIZER (finance/optimizer.py — fixed 6-rule order, determini
   ↓
 CANONICAL DECISION OBJECT (decision/decision.py — single source of truth)
   ↓
-GROUNDED EXPLANATION (output/explanation.py — ★ LLM draft from validated facts only)
+GROUNDED EXPLANATION (output/explanation.py — deterministic template over
+validated facts in E0; LLM draft from validated facts only, E5+)
   ↓
 OUTPUT VALIDATOR (output/validator.py + scripts/validate_output.py — deterministic block)
   ↓

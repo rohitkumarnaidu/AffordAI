@@ -2,7 +2,7 @@
 
 Status per item: `[x]` complete · `[~]` partial · `[ ]` not started · `[!]` blocked/risky · `[-]` n/a.
 Evidence required: implementation + tests + validation output, not file existence.
-Updated 2026-09-13 after E0 deterministic build (40 tests green, 250-row
+Updated 2026-09-13 after E0 deterministic build (44 tests green, 250-row
 validator PASS, byte-identical replay). Referenced by `AGENTS.md` §§27–27b, 30.
 
 ## MODULE 0 — Repository & governance

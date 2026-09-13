@@ -122,7 +122,7 @@ Rank safe eligible plans:
   new-deduction messages (ignored, documented); earliest==deadline
   coincidences in 2 sample rows.
 
-## 7. Submission
+## 8. Submission
 
 `code.zip` (runnable code + prompts/config + README + `evaluation/`), root `output.csv`
 (250 rows + header), `chat_transcript (log.txt)`.

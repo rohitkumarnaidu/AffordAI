@@ -327,6 +327,42 @@ def decide_context(
     return decision
 
 
+def _fallback_decision(ctx: RequestContext, reason: str) -> Decision:
+    """Safest valid decision when a request cannot be processed: never crash."""
+    return Decision(
+        original_index=ctx.original_index,
+        request_id=ctx.request_id,
+        user_id=ctx.user_id,
+        amount_safe_to_pay=Decimal("0"),
+        affordability_status="not_affordable",
+        recommended_payment_method="not_recommended",
+        payment_plan="none",
+        earliest_date_for_full_payment="",
+        spending_changes_needed="none",
+        decision_explanation=(
+            f"Processing failure ({reason}); safest fallback applied, "
+            "no payment recommended."
+        ),
+        evidence=[],
+    )
+
+
+def _decide_safe(
+    ctx: RequestContext,
+    tables: dict,
+    dataset_dir: str,
+    llm_config: LlmConfig,
+    trace: Trace | None,
+) -> tuple[Decision, bool]:
+    """Decide one request; on unexpected failure return the safe fallback."""
+    try:
+        return decide_context(ctx, tables, dataset_dir, llm_config, trace), False
+    except Exception as exc:  # never crash the batch; degrade to safest valid row
+        if trace is not None:
+            trace.record("decision-fallback", ctx.request_id, f"{type(exc).__name__}: {exc}"[:200])
+        return _fallback_decision(ctx, type(exc).__name__), True
+
+
 def run(
     dataset_dir: str,
     llm_config: LlmConfig | None = None,
@@ -338,10 +374,12 @@ def run(
     llm_config = llm_config or load_config_from_env()
     tables = load_dataset(dataset_dir)
     contexts = build_contexts(tables)
-    decisions = [
-        decide_context(ctx, tables, dataset_dir, llm_config, trace)
-        for ctx in contexts
-    ]
+    decisions: list[Decision] = []
+    fallbacks = 0
+    for ctx in contexts:
+        decision, failed = _decide_safe(ctx, tables, dataset_dir, llm_config, trace)
+        decisions.append(decision)
+        fallbacks += failed
     decisions.sort(key=lambda d: d.original_index)
     usage = UsageReport(
         provider=llm_config.provider,
@@ -354,5 +392,6 @@ def run(
     return decisions, {
         "usage": usage,
         "n_requests": len(decisions),
+        "n_fallbacks": fallbacks,
         "llm_reason": llm_config.reason,
     }

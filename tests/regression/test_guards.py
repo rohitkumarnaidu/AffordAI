@@ -68,3 +68,19 @@ def test_r5_sent_at_ordering():
     a = parse_datetime("2025-07-29T09:30:00Z", "t")
     b = parse_datetime("2025-07-29", "t")
     assert isinstance(a, datetime) and a > b
+
+
+def test_r6_per_request_fallback_never_crashes_batch():
+    from affordai.pipeline import RequestContext, _decide_safe
+
+    broken = RequestContext(
+        original_index=0, request_id="rx", user_id="ux",
+        request={"request_id": "rx"}, profile={}, events=[],
+        messages=[], images=[], payment_options=[],
+    )
+    decision, failed = _decide_safe(broken, {}, "dataset/official", None, None)
+    assert failed is True
+    assert decision.affordability_status == "not_affordable"
+    assert decision.recommended_payment_method == "not_recommended"
+    assert decision.payment_plan == "none"
+    assert decision.original_index == 0  # identity preserved on fallback

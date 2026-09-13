@@ -18,7 +18,10 @@ Files: `src/affordai/pipeline.py` orchestrates; `ingestion/` resolves;
 
 - **Why this architecture?** Score = exact safe decisions; deterministic core + thin validated AI.
 - **AI boundary?** AI proposes evidence, never decisions; see `docs/decision-matrix.md` F + code gates.
-- **90-day guarantee?** Daily ledger in `finance/forecast.py`; invariant checker re-simulates every plan.
+- **90-day guarantee?** Daily ledger in `finance/forecast.py` simulates every
+  candidate (unsafe rejected before ranking); validator independently
+  re-derives plan shapes/deadlines from CSVs (floor re-simulation lives in
+  the engine sim + tests, not the validator — see checklist 22.2).
 - **Plans?** Generator enumerates allowed shapes; validator enforces partial-5-conds + installment-exactness.
 - **Evidence?** Registry with provenance; validator rejects unknown IDs.
 - **Images?** Only when needed (blank amounts first); `event_id → related_event_id → PNG → validated amount`.
