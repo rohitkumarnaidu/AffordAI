@@ -749,146 +749,146 @@
 # 22. CANONICAL DECISION OBJECT
 
 ## 22.1 Fields
-- [ ] request ID
-- [ ] safe amount
-- [ ] status
-- [ ] recommended method
-- [ ] payment plan
-- [ ] earliest full-payment date
-- [ ] spending changes
-- [ ] evidence
-- [ ] explanation facts
+- [x] request ID
+- [x] safe amount
+- [x] status
+- [x] recommended method
+- [x] payment plan
+- [x] earliest full-payment date
+- [x] spending changes
+- [x] evidence
+- [x] explanation facts
 
 ## 22.2 Integrity
-- [ ] One source of truth
-- [ ] Output serializer derives from it
-- [ ] Explanation derives from it
-- [ ] Validator checks it
+- [x] One source of truth
+- [x] Output serializer derives from it
+- [x] Explanation derives from it
+- [x] Validator checks it
 
 ---
 
 # 23. DECISION ENGINE
 
 ## 23.1 Status
-- [ ] `affordable_now`
-- [ ] `affordable_with_plan`
-- [ ] `affordable_later`
-- [ ] `not_affordable`
+- [x] `affordable_now`
+- [x] `affordable_with_plan`
+- [x] `affordable_later`
+- [x] `not_affordable`
 
 ## 23.2 Cross-field rules
-- [ ] Status ↔ method consistent
-- [ ] Method ↔ plan consistent
-- [ ] Plan ↔ date consistent
-- [ ] Spending changes ↔ plan consistent
-- [ ] Explanation ↔ decision consistent
+- [x] Status ↔ method consistent
+- [x] Method ↔ plan consistent
+- [x] Plan ↔ date consistent
+- [x] Spending changes ↔ plan consistent
+- [x] Explanation ↔ decision consistent
 
 ## 23.3 Edge cases
-- [ ] No safe plan
-- [ ] Safe now
-- [ ] Safe later
-- [ ] Partial only
-- [ ] Installment only
-- [ ] Wait only
-- [ ] Multiple safe candidates
-- [ ] Tie-break case
+- [x] No safe plan
+- [x] Safe now
+- [x] Safe later
+- [x] Partial only
+- [x] Installment only
+- [x] Wait only
+- [x] Multiple safe candidates
+- [x] Tie-break case
 
 ---
 
 # 24. EXPLANATION ENGINE
 
 ## 24.1 Inputs
-- [ ] Only validated decision facts
-- [ ] Relevant evidence references
-- [ ] Final financial state
+- [x] Only validated decision facts
+- [x] Relevant evidence references
+- [x] Final financial state
 
 ## 24.2 Content
-- [ ] Why current answer is safe/unsafe
-- [ ] Important constraint
-- [ ] Chosen plan
-- [ ] Relevant timing
-- [ ] Relevant evidence
+- [x] Why current answer is safe/unsafe
+- [x] Important constraint
+- [x] Chosen plan
+- [x] Relevant timing
+- [x] Relevant evidence
 
 ## 24.3 Validation
-- [ ] No invented facts
-- [ ] No invented evidence
-- [ ] No contradictory numbers
-- [ ] No contradictory dates
-- [ ] No contradictory recommendation
-- [ ] No generic claim unsupported by state
+- [x] No invented facts
+- [x] No invented evidence
+- [x] No contradictory numbers
+- [x] No contradictory dates
+- [x] No contradictory recommendation
+- [x] No generic claim unsupported by state
 
 ---
 
 # 25. OUTPUT SERIALIZATION
 
 ## 25.1 CSV
-- [ ] Exact eight columns
-- [ ] Exact column order
-- [ ] One row/request
-- [ ] Original request order
-- [ ] Correct CSV escaping
-- [ ] Required date formatting
-- [ ] Required plan formatting
-- [ ] Required spending-change formatting
+- [x] Exact eight columns
+- [x] Exact column order
+- [x] One row/request
+- [x] Original request order
+- [x] Correct CSV escaping
+- [x] Required date formatting
+- [x] Required plan formatting
+- [x] Required spending-change formatting
 
 ## 25.2 Identity
-- [ ] Input request IDs copied exactly
-- [ ] Output request IDs unique
-- [ ] No reindexing accidents
+- [x] Input request IDs copied exactly
+- [x] Output request IDs unique
+- [x] No reindexing accidents
 
 ---
 
 # 26. OUTPUT VALIDATOR
 
 ## 26.1 Structural
-- [ ] File exists
-- [ ] Correct column count
-- [ ] Correct column names
-- [ ] Correct column order
-- [ ] Correct row count
+- [x] File exists
+- [x] Correct column count
+- [x] Correct column names
+- [x] Correct column order
+- [x] Correct row count
 
 ## 26.2 Identity
-- [ ] Input IDs == output IDs
-- [ ] Exact same order
-- [ ] No duplicate IDs
-- [ ] No missing IDs
+- [x] Input IDs == output IDs
+- [x] Exact same order
+- [x] No duplicate IDs
+- [x] No missing IDs
 
 ## 26.3 Numeric
-- [ ] Safe amount numeric
-- [ ] Safe amount bounded
-- [ ] Payment totals valid
-- [ ] Currency conversion validated
+- [x] Safe amount numeric
+- [x] Safe amount bounded
+- [x] Payment totals valid
+- [x] Currency conversion validated
 
 ## 26.4 Enum
-- [ ] Status valid
-- [ ] Method valid
+- [x] Status valid
+- [x] Method valid
 
 ## 26.5 Plan
-- [ ] Format valid
-- [ ] Chronological
-- [ ] Exact amount totals
-- [ ] Deadline valid
-- [ ] Supplied installment exactness
-- [ ] Partial exactly two payments
+- [x] Format valid
+- [x] Chronological
+- [x] Exact amount totals
+- [x] Deadline valid
+- [x] Supplied installment exactness
+- [x] Partial exactly two payments
 
 ## 26.6 Spending changes
-- [ ] Syntax valid
-- [ ] Maximum three
-- [ ] Flexible-only
-- [ ] No duplicate mutation
-- [ ] Event exists
+- [x] Syntax valid
+- [x] Maximum three
+- [x] Flexible-only
+- [x] No duplicate mutation
+- [x] Event exists
 
 ## 26.7 Evidence
-- [ ] IDs exist
-- [ ] Correct request/user
-- [ ] Relevant evidence
+- [x] IDs exist
+- [x] Correct request/user
+- [x] Relevant evidence
 
 ## 26.8 Consistency
-- [ ] Status/method/plan consistent
-- [ ] Decision/explanation consistent
-- [ ] Plan/dates consistent
+- [x] Status/method/plan consistent
+- [x] Decision/explanation consistent
+- [x] Plan/dates consistent
 
 ## 26.9 Gate
-- [ ] Any validation failure blocks final submission
+- [x] Any validation failure blocks final submission
 
 ---
 
