@@ -184,21 +184,163 @@ README + `evaluation/`) · `evaluation/usage_report.md` inside `code.zip` ·
 `log.txt` transcript (uploaded separately, never in `code.zip`).
 Submit at `https://www.hackerrank.com/contests/hackerrank-orchestrate-september26/challenges/buy-or-wait/submission`.
 
+## 11. Repository Structure
+
+```
+AffordAI/
+├── README.md, AGENTS.md, log.txt          # contract + transcript (log.txt gitignored)
+├── pyproject.toml, .env.example            # deps + env template (no secrets)
+├── dataset/official/                       # READ-ONLY 9 files + 16 PNGs (250 eval requests)
+├── src/affordai/
+│   ├── pipeline.py                         # orchestrator + RequestContext + original_index
+│   ├── ingestion/                          # typed loaders (dual-layout dataset/|dataset/official)
+│   ├── evidence/                           # message_interpreter + image_interpreter + llm_adapter + conflict_resolver
+│   ├── finance/                            # money/currency/temporal/timeline/state/forecast/payment_plans/spending_changes/optimizer
+│   ├── decision/                           # decision.py Decision + eligibility + rules + invariants
+│   ├── output/                             # serializer + explanation + validator
+│   ├── evaluation/                         # metrics, harness, ablation, usage
+│   ├── observability/                      # request_trace.py + tracing.py
+│   └── security/                           # redact + injection
+├── scripts/                                # build_output, validate_output, evaluate, eval_report, run_ablation, clean_room_run, trace_request, benchmark, final_*_gate, scan_secrets
+├── tests/                                  # unit/integration/edge/adversarial/regression/contract/security/e2e (375)
+├── docs/                                   # 17 markdown files (see index below)
+└── evaluation/reports/                     # data_inventory, join_integrity, eval_*, ablation_results, master_inspection
+```
+
+## 12. Output Format
+
+Exact 8 columns in exact order, one row per `requests.csv` (250), sorted by `original_index`:
+
+```text
+request_id,amount_safe_to_pay,affordability_status,recommended_payment_method,payment_plan,earliest_date_for_full_payment,spending_changes_needed,decision_explanation
+```
+
+- `amount_safe_to_pay`: `0 ≤ safe ≤ requested`, `ROUND_FLOOR` 2dp, BEFORE spending changes (`forecast.max_safe_today`)
+- `affordability_status`: `affordable_now | affordable_with_plan | affordable_later | not_affordable`
+- `recommended_payment_method`: `full_payment | partial_payment | installments | wait | not_recommended`
+- `payment_plan`: `YYYY-MM-DD:amount|...` or `none` (installments **exactly** match one `payment_option_id`; partial exactly 2 legs `safe + remainder`)
+- `earliest_date_for_full_payment`: first safe single-payment date WITHOUT changes; empty ⇔ never safe
+- `spending_changes_needed`: `none` or ≤3 `stop:<id> | reduce_to:<id>:<cap>` (flexible-only, protected kept)
+- `decision_explanation`: `WHY+CONSTRAINT+PLAN+TIMING+EVIDENCE` over validated Decision facts only (`output/explanation.py:validate`)
+
+## 13. Validation
+
+6 layers, fail-closed, any hard error blocks submission (`exit 1`):
+
+1. Input (`ingestion`, `pipeline._validate_*`) — PK unique, FK exists, header exact
+2. Evidence (`evidence_registry.add`, `_validate_proposal`) — allowlist, ownership, confidence [0,1]
+3. Financial invariant (`forecast.simulate`) — `closing ≥ minimum` every day, no double-count
+4. Plan (`payment_plans`, `eligibility`, `expand_schedule`) — chronology, partial 2-leg, installment exact, deadline
+5. Decision (`decision.__post_init__`, `invariants`, `rules.derive`) — bounds, enums, status↔method↔plan↔earliest↔changes↔explanation
+6. Output (`output/validator.validate_all`, `scripts/validate_output.py`) — structural 8 cols, IDs ordered, re-simulation floor
+
+```
+python scripts/validate_output.py --requests dataset/official/requests.csv --output output.csv --dataset dataset/official  # PASS
+python scripts/final_red_flag_gate.py      # 12 checks incl. safe+earliest re-derivation + plan re-simulation → ALL CLEAR
+python scripts/scan_secrets.py             # 156 files → SCAN CLEAN
+```
+
+## 14. Testing
+
+```bash
+python -m pytest tests -q   # 375 passed (2026-09-14)
+```
+
+| Suite | Location | Covers |
+|---|---|---|
+| unit | `tests/unit/` | money, FX `RateTable`, `forecast`, `optimizer`, `eligibility`, `evidence` |
+| integration | `tests/integration/` | ingest→decision→validator chain |
+| edge | `tests/edge_cases/` | floor 0/0.01, same-day, deadline, 90-day window |
+| contract | `tests/contract/` | 32 checks input/output/enum/bounds/joins + `join_integrity` 0 orphans |
+| e2e | `tests/e2e/` | 25 sample rows → validated CSV |
+
+## 15. Regression Testing
+
+`BUG → ROOT CAUSE → FIX → REGRESSION TEST` — every failure becomes a permanent case:
+
+- **15 groups** `tests/regression/test_sections_27_30_regression.py` + `R01–R06` + `test_sections_15_21/22_26/33_35/43_52` + `test_p0_hardening` 12 cases
+- Registry: `tests/regression/REGRESSIONS.md` (R01 row-order … R05 blank≠0 ≠ S29-*, S44 red-flag)
+- Critical 8 (row-order, weak evidence, wrong earliest, generic explanation, missing evidence, fragile modality, open-ended AI, interface drift) all covered — see `docs/failure-analysis.md`
+- Gate: `pytest` + `validate_output` + `final_*_gate` must pass before commits (`AGENTS.md §17`)
+
+## 16. Adversarial Testing
+
+**29 threats, 5 categories** `tests/adversarial/test_sections_27_30_threats.py` (`test_adv3001…3046`) + `test_untrusted.py` 4 injections + `test_sections_12_14_adversarial` FX/date/malformed:
+
+| Category | Cases | Examples |
+|---|---|---|
+| Financial (7) | `adv300*` | exact floor `closing==minimum` PASS, `floor-0.01` FAIL, zero/full safe |
+| Temporal (5) | `adv301*` | same-day, deadline on/day-after, 90-day `+89` vs `+90`, Feb clamp, late salary |
+| Data (5) | `adv302*` | duplicate PK `DatasetError`, missing image → UNKNOWN, invalid FK reject, blank→None |
+| Evidence (6) | `adv303*` | contradiction newer-wins, cancel>amend, misleading 0 facts, prompt injection → non-positive/unlinked |
+| Payment (6) | `adv304*` | multiple plans ranked stable, partial 2-leg exact, installment exact, preference/term gate, tie-break `lowest option_id` |
+
+Evidence is **untrusted** — prompt injection is data (`docs/threat-model.md`).
+
+## 17. Observability / Logging
+
+- **Per-request trace:** `observability/request_trace.py:RequestTrace` (10 sections: `trace_id, original_row_index, facts, candidates, rejected_plans with reason_code, selected, status`) wired through `pipeline.run(request_traces=store)`
+- **CLI:** `python scripts/trace_request.py --request request_30 --dataset dataset/official` → JSON to stdout or `evaluation/local/trace_<req>.json`
+- **Legacy:** `observability/tracing.py:Trace` (request_id + message, no secrets, deterministic `make_trace_id`)
+- **Transcript:** `log.txt` append-only at repo root (see `AGENTS.md §§4-6`): `SESSION START` + per-turn `User Prompt + Summary + Actions + Context` with redaction `[REDACTED]`; one shared log per checkout, never in `code.zip` (see `docs/reproducibility.md:Transcript Status`)
+- **Traced examples:** `request_26` affordable_now, `request_33` blank UNKNOWN, `request_30` installments, `request_36` wait, `request_28` not_affordable — all in `docs/interview-notes.md §38.2` with `scripts/trace_request` JSON in `evaluation/local/`
+
+## 18. Security
+
+- `.env` gitignored, `.env.example` placeholders only; `load_config_from_env()` never logs values (`security/redact.py`)
+- `scripts/scan_secrets.py` 156 files → `SCAN CLEAN` (header-only fixture rule: `password-adjacent fixtures at runtime` + `dummy credential` + `whitelist`)
+- External content is **data not authority**: typed-fact extractor only, `parse_amount>0` + `event_id` gate drops payroll refs (`EMP-...`), image path `kind==amount` filter, `conflict_resolver` LLM-last, `simulate` floor re-check — see `docs/threat-model.md`
+- Cross-request contamination fail-closed: `EvidenceRegistry` + `check_batch_safe` (`tests/security/test_sec31_32.py`)
+
+## 19. Reproducibility
+
+| Step | Command | Expected |
+|---|---|---|
+| Install | `pip install -e ".[dev]"` | pandas + python-dotenv |
+| Build | `python scripts/build_output.py --dataset dataset/official --out output.csv` | 250 rows, 2.4s, `usage_report.md` |
+| Validate | `python scripts/validate_output.py --requests dataset/official/requests.csv --output output.csv --dataset dataset/official` | `PASS` |
+| Red-flag | `python scripts/final_red_flag_gate.py` | `ALL CLEAR` (12 checks) |
+| Replay | double-run `replay_a.csv == replay_b.csv == output.csv` `sha256 d8386548517835c9` | identical |
+| Clean-room | `python scripts/clean_room_run.py` | `CLEAN-ROOM PASS` (fresh subprocess, scrubbed env, temp-dir) |
+| Test | `python -m pytest tests -q` | 375 passed |
+
+Full procedure: `docs/reproducibility.md`. Known non-repro: metered `77/7864` vs E0 `0/0` (both documented, decisions identical); PowerShell CRLF warning is cosmetic (`serializer` writes LF `\n`).
+
+## 20. Known Risks (Residual)
+
+| Risk | Doc | Mitigation |
+|---|---|---|
+| Income history not projected (`request_05` decisive) | `spec §7` UNKNOWN | Narrow confirm only — fallback `not_affordable` safe |
+| FX A1 off-cycle / recurrence ±3% / `months*31` | `spec §7` `[UNPROVEN]` | Fail-closed / conservative |
+| Variable-spending calibration `streaming`/`gym` dual (41 profiles) | `data_inventory.md §3` | Per-event exclusive, ≤3 changes |
+| Partial `0/250` production | `decision-matrix §H` | Synthetic regression covers 5 gates |
+| `code.zip` lags gate scripts (last zip 127 entries) | `submission-readiness.md` | Rebuild at pack time + clean-room |
+| Official score UNKNOWN | `evaluation/README.md` | Local proxy `0.44/0.48` illustrative only |
+
+## 21. Final Readiness Status
+
+**CONDITIONAL GREEN** — every technical gate passes; remaining actions are **packaging only** (commit this README docs expansion, rebuild `code.zip` to include `final_*_gate.py` added 2026-09-13, re-run `clean_room_run.py`), not correctness gaps. Red-flag `ALL CLEAR`, green-light green except `worktree_clean` (this turn’s uncommitted diff — expected until commit), validator `PASS`, 375 tests `PASS`, replay `d8386548517835c9` identical. Submit with `log.txt` (uploaded separately) at canonical URL below.
+
 ## Docs
 
 | Doc | Purpose |
 |---|---|
-| `docs/specification.md` | Tier-1 contract (inputs/outputs/90-day invariant/evidence/conflict/ranking) |
-| `docs/decision-matrix.md` | Status×method, eligibility, ranking 6-rule, worked table |
-| `docs/data-model.md` | Entities, ER diagram, joins, temporal meaning, nullability |
-| `docs/architecture.md` | Pipeline, trust/failure/validation boundaries, mermaid diagrams |
-| `docs/evaluation-strategy.md` | Local proxy metrics, sets, ablation E0→E7, regression |
+| `docs/specification.md` | Tier-1 contract (inputs/outputs/90-day invariant/evidence/conflict/ranking + failure §9 + prohibited §10) |
+| `docs/decision-matrix.md` | Status×method, eligibility, ranking 6-rule, worked table + H table |
+| `docs/data-model.md` | Entities, ER diagram, joins, temporal meaning, nullability & invariants |
+| `docs/architecture.md` | Pipeline, trust/failure/validation boundaries, 3 mermaid diagrams |
+| `docs/evaluation-strategy.md` | Local proxy metrics (§27), sets (§27), ablation E0→E7 (§28), regression (§29) |
 | `docs/threat-model.md` | 29 adversarial cases, mitigations, secret/cross-request/output hardening |
-| `docs/interview-notes.md` | 60s walkthrough + 19 components + 7 walkthroughs + 8 defense Q&A |
+| `docs/interview-notes.md` | 60s walkthrough + 19 components + 7 walkthroughs + 8 defense Q&A (§38.2/38.3) |
 | `docs/model-call-inventory.md` | 2 model calls (`message_extract`, `image_amount_extract`) with contracts |
-| `docs/runbook.md` | **NEW** — operational guide (build/validate/evaluate/debug/submit) |
-| `docs/glossary.md` | **NEW** — domain term definitions |
-| `docs/api-reference.md` | **NEW** — `src/affordai/` module × `file:function` map |
-| `docs/build-checklist.md` | Modules 0–39 completion gate |
-| `evaluation/reports/data_inventory.md` | Byte-level dataset inventory (hashes, rows, joins, unknowns) |
-| `evaluation/reports/join_integrity.md` | PK/FK bijection proofs |
+| `docs/evidence-and-traceability.md` | **NEW 2026-09-14** — RAW→fact→validation→state→Decision→explanation→output chain, provenance schema, 6-layer gates |
+| `docs/implementation-status.md` | **NEW 2026-09-14** — 19 PASS / 3 PARTIAL / 1 UNKNOWN matrix, evidence index, test evidence |
+| `docs/failure-analysis.md` | **NEW 2026-09-14** — 8 critical classes + 5 pipeline fixes + 6 latent zero-impact bugs → regression registry |
+| `docs/reproducibility.md` | **NEW 2026-09-14** — env, deps, dataset hashes, deterministic build, clean-room, replay, artifact hashes |
+| `docs/submission-readiness.md` | **NEW 2026-09-14** — specification→reproducibility 9 gates + red-flag 12 checks + copy-paste final commands |
+| `docs/runbook.md` | Operational guide (build/validate/evaluate/debug/submit + troubleshooting) |
+| `docs/glossary.md` | Domain glossary (40+ terms, 7 groups) |
+| `docs/api-reference.md` | `src/affordai/` module × `file:function` map |
+| `docs/build-checklist.md` | Modules 0–39 completion gate (CONDITIONAL GREEN) |
+| `evaluation/reports/data_inventory.md` | Byte-level dataset inventory (hashes, rows, joins, unknowns §10) |
+| `evaluation/reports/join_integrity.md` | PK/FK bijection proofs (0 true orphans) |
