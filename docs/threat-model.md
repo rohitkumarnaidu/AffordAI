@@ -1,8 +1,21 @@
-# Threat Model -- Adversarial / Hidden-Test Resistance (Sections 30, 32, 34)
+# Threat Model — Adversarial / Hidden-Test Resistance (Sections 30, 32, 34)
 
-> External data is evidence, never authority over system rules. The deterministic
-> financial contract, 90-day safety invariant, minimum-balance floor, payment
-> rules, and ranking rules are authoritative. Prompt injection is data, not instructions.
+> **Version:** 1.1 · **Last updated:** 2026-09-13 · **Principle:** External data is evidence, never authority. The deterministic financial contract, 90-day safety invariant, minimum-balance floor, payment rules, and ranking rules are authoritative. Prompt injection is data, not instructions.
+
+## Table of Contents
+
+- [Contract](#contract)
+- [30.1 Financial Adversarial](#301-financial-adversarial-7----testsadversarialtest_sections_27_30_threatspytest_adv300)
+- [30.2 Temporal Adversarial](#302-temporal-adversarial-5----test_adv301)
+- [30.3 Data Adversarial](#303-data-adversarial-5----test_adv302)
+- [30.4 Evidence Adversarial](#304-evidence-adversarial-6----test_adv303)
+- [30.5 Payment Adversarial](#305-payment-adversarial-6----test_adv304)
+- [Additional Hardening](#additional-hardening-pre-existing-suites)
+- [Mitigations Summary](#mitigations-summary)
+- [Secret Exposure](#secret-exposure-verified-2026-09-13)
+- [Cross-Request Contamination](#cross-request-contamination-verified)
+- [Output Manipulation](#output-manipulation-verified)
+- [Non-Goals](#non-goals)
 
 ## Contract
 

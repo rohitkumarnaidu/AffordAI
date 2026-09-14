@@ -1,6 +1,32 @@
-# Interview Notes -- AffordAI (living defense log)
+# Interview Notes — AffordAI (Living Defense Log)
 
-> 60s walkthrough: request -> resolve data (ingestion) -> interpret evidence (messages/images) -> financial state -> 90-day forecast simulation -> generate candidates -> validate safety/deadline/preference -> rank deterministically -> Decision -> grounded explanation -> validator -> CSV. Every amount is Decimal, every date is YYYY-MM-DD, every plan is re-derived.
+> **Version:** 1.5 · **Last updated:** 2026-09-13 · **Purpose:** 60s walkthrough + per-component ownership for HackerRank interview defense
+> **Walkthrough:** `request → resolve data (ingestion) → interpret evidence (messages/images) → financial state → 90-day forecast simulation → generate candidates → validate safety/deadline/preference → rank deterministically → Decision → grounded explanation → validator → CSV`. Every amount is `Decimal`, every date is `YYYY-MM-DD`, every plan is re-derived.
+
+## Table of Contents
+
+- [System Walkthrough (60s)](#system-walkthrough-60s)
+- [Per-Component Deep Dive](#per-component-deep-dive)
+  - [Deterministic Financial Core](#deterministic-financial-core-pipelinepydecide_context)
+  - [Forecast & Balance Simulation](#forecast--balance-simulation-financeforecastpy-financestatepy-financetimelinepy)
+  - [Decision Rules](#decision-rules-decisionrulespy-decisiondecisionpy-decisioninvariantspy)
+  - [Message Interpretation](#message-interpretation-evidencemessage_interpreterpy-evidence_llm_adapterpy-evidencemessage_incomepy)
+  - [Image Evidence Handling](#image-evidence-handling-evidenceimage_interpreterpy)
+  - [Conflict Resolution](#conflict-resolution-evidenceconflict_resolverpy)
+  - [Payment Plan Generation](#payment-plan-generation-financepayment_planspy-financespending_changespy)
+  - [Optimizer/Ranking](#optimizerranking-financeoptimizerpy)
+  - [Explanation Generation](#explanation-generation-outputexplanationpy)
+  - [Evidence Registry](#evidence-registry-evidenceevidence_registrypy)
+  - [Output Validator](#output-validator-outputvalidatorpy-scriptsvalidate_outputpy)
+  - [Evaluation & Ablation](#evaluation-harness-evaluation-scriptseval_reportpy--ablation-harness-evaluationablationpy-scriptsrun_ablationpy)
+  - [Regression & Adversarial](#regression-suite-testsregression--adversarial-suite-testsadversarial)
+  - [Token Accounting](#token-accounting-evaluationusagepy-llm_adapterpy-pipelinepy)
+  - [Clean-Room / Observability / Ingestion](#clean-room-execution-scriptsclean_room_runpy--ingestion-and-request-context-ingestion-pipelinepyrequestcontext-build_contexts--eligibility-gate-decisioneligibilitypy--serializer-outputserializerpy-outputvalidatorpy-canonical-ordering--observability-and-tracing-observabilityrequest_tracepy-observabilitytracingpy-pipeline-rtrace)
+- [Q&A: Authority & Fallback](#qa-authority--fallback)
+- [Worked Examples](#worked-examples)
+- [§38.2 Walkthroughs](#382-walkthroughs-all-values-local-measurement-from-outputcsv--datasetofficial-2026-09-13)
+- [§38.3 Architecture Defense](#383-architecture-defense-exact-answers)
+- [Design Rationale per Component Group](#design-rationale-per-component-group-alternative--trade-off--limitation)
 
 ## System walkthrough (60s)
 

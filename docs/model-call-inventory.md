@@ -1,7 +1,16 @@
-# Model-Call Inventory (Sec 32.1 -- single source of truth)
+# Model-Call Inventory — AffordAI (Sec 32.1 — Single Source of Truth)
 
-> Every model call MUST have a contract. This file mirrors `src/affordai/evidence/llm_adapter.py:MODEL_CALLS`
-> (code is authoritative). Any drift between this doc and `MODEL_CALLS` is a bug.
+> **Version:** 1.1 · **Last updated:** 2026-09-13 · **Code is authoritative:** `src/affordai/evidence/llm_adapter.py:MODEL_CALLS`
+> Every model call MUST have a contract. Any drift between this doc and `MODEL_CALLS` is a bug.
+
+## Table of Contents
+
+- [Calls](#calls)
+  - [1) message_extract](#1-message_extract)
+  - [2) image_amount_extract](#2-image_amount_extract)
+- [Why No LLM on Deterministic Work](#why-no-llm-on-deterministic-work)
+- [Token / Cost Discipline](#token--cost-discipline-sec-322-323)
+- [Evidence That AI Cannot Override Safety](#evidence-that-ai-cannot-override-safety)
 
 No provider SDK is vendored; both calls are gated behind `LLM_ENABLED=1` +
 valid `API_KEY` (auto-loaded from repo-root `.env` via `_try_load_dotenv`,

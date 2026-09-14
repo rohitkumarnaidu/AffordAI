@@ -1,4 +1,15 @@
-# Data Model
+# Data Model — AffordAI
+
+> **Version:** 1.2 · **Last updated:** 2026-09-13 · **Source:** `dataset/official/` inspected via `csv.DictReader` (see `evaluation/reports/data_inventory.md` + `join_integrity.md`)
+
+## Table of Contents
+
+- [Entities](#entities)
+- [ER Diagram](#er-diagram)
+- [Joins](#joins)
+- [Canonical Context](#canonical-context-preserved-end-to-end)
+- [Temporal Meaning](#temporal-meaning)
+- [Nullability & Invariants](#nullability--invariants)
 
 ## Entities
 
@@ -23,7 +34,32 @@
   `dataset/official/media/images/<image_id>.png`.
 - **output** (`request_id` PK): 8 required columns (§spec 3).
 
+## ER Diagram
+
+```mermaid
+erDiagram
+    requests ||--|| profiles : "user_id FK"
+    requests ||--o{ request_payment_options : "request_id 1:2-4"
+    requests ||--o{ messages : "request_id nullable"
+    profiles ||--o{ financial_events : "user_id 1:~92"
+    financial_events ||--o{ messages : "related_event_id 1:1"
+    financial_events ||--o{ images : "related_event_id 1:1 blank"
+    financial_events ||--o{ financial_events : "linked_event_id lifecycle"
+    financial_events }o--|| exchange_rates : "FX dated lookup"
+    requests ||--|| output : "request_id PK"
+```
+
 ## Joins
+
+| Relationship | Cardinality | FK Check | Notes |
+|---|---|---|---|
+| `requests.user_id → profiles.user_id` | 1:1 | 250/250 | `profiles∖requests` = 25 sample-only users |
+| `requests.request_id → payment_options.request_id` | 1:2–4 | 250/250 | avg 2.876; `790 = 719 eval +71 sample` |
+| `requests.request_id → messages.request_id` | 1:n nullable | 116 eval distinct | 87 blank = user-level broadcast |
+| `financial_events.user_id → profiles.user_id` | n:1 | 25342/25342 | 56–129 events/user |
+| `financial_events.linked_event_id → financial_events.event_id` | lifecycle | 58 links, 0 orphans | refund/valuation chains, 0 fan-in |
+| `messages/images.related_event_id → financial_events.event_id` | 1:1 nullable | 39 + 16, 0 orphans | strictly 1:0..1 per event |
+| `exchange_rates.(rate_date,from,to)` | dated FX | 140 foreign → 0 missing | 5 directed pairs, latest-on-or-before A1 |
 
 ```text
 requests.user_id → profiles.user_id (1:1 per request user)
@@ -41,15 +77,31 @@ RequestContext(original_index, request_id, user_id, request, profile,
                events, messages, images, payment_options, evidence)
 ```
 
-## Temporal meaning
+## Temporal Meaning
 
-`event_date` = occurred/recorded; `settlement_date` = cash movement (forecast uses this).
-`request_date` = day-0 of 90-day window. `first_payment_date`/`frequency` define installment cash days.
-`sent_at` orders message precedence. `desired_completion_date` = deadline gate.
-`rate_date` matched to settlement date per §spec 2.
+| Field | Meaning | Used In |
+|---|---|---|
+| `event_date` | occurred/recorded | display / `linked_event_id` chain |
+| `settlement_date` | cash movement | **forecast** (`timeline.build_flows`) |
+| `request_date` | day-0 of 90-day window | `temporal.forecast_end = request_date + 89` |
+| `first_payment_date` / `payment_frequency_days` | installment cash days | `payment_plans.expand_schedule` |
+| `sent_at` | message precedence `ISO YYYY-MM-DDTHH:MM:SSZ` | `conflict_resolver.resolve` |
+| `desired_completion_date` | deadline gate (inclusive) | `forecast.simulate` + `optimizer.rank_key` |
+| `rate_date` | FX dated rate | `currency.RateTable` per A1 |
 
-## Nullability
+`settlement_date` is authoritative for cash flow; `event_date` is fallback only for 10 `unrealized` rows (then ignored per spec §4).
 
-`financial_events.amount` nullable (→ image); `messages.related_event_id/request_id` nullable;
-`max_installment_months` blank = refuse installments; `earliest_date` empty = never safe;
-`payment_frequency_days` blank for single-payment options.
+## Nullability & Invariants
+
+| Field | Nullable | Meaning When Blank/Empty |
+|---|---|---|
+| `financial_events.amount` | ✅ 16/25342 | → `images.csv:related_event_id` → PNG; NEVER 0 (`money.parse_amount_safe` → `None`) |
+| `messages.related_event_id` | ✅ 176/215 | no 1:1 event linkage; `request_id` still routes |
+| `messages.request_id` | ✅ 87/215 | user-level broadcast (join via `user_id` + window) |
+| `financial_profiles.max_installment_months` | ✅ 119/275 | user refuses installments (eligibility gate) |
+| `output.earliest_date` | ✅ empty if never safe | ⇔ full never safe within 90-day window |
+| `request_payment_options.payment_frequency_days` | ✅ 275/790 | single-payment option (`number_of_payments=1`) |
+| `financial_events.settlement_date` | ✅ 10/25342 | `unrealized` valuations → fallback `event_date`, then ignored |
+| `financial_events.minimum_allowed_amount` | ✅ 22435/25342 | only for `reducible`/`reducible_or_stoppable` |
+
+**Invariants:** all PKs unique (see `join_integrity.md §1`); `minimum_balance_to_keep ≤ current_available_balance` (0 violations); `desired_completion_date ≥ request_date` (0 inverted); blank request amounts = 0 (blanks are at *event* level only).

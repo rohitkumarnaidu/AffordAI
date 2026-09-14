@@ -1,8 +1,22 @@
 # Specification — AffordAI (HackerRank Orchestrate September 2026 — Buy or Wait?)
 
-Source of truth: official `problem_statement.md` + `AGENTS.md §6` from
-`upstream/main` (fetched, never merged). This file mirrors that contract for implementation.
-Where prose and data disagree, the data + samples govern after documentation.
+> **Version:** 1.4 · **Last updated:** 2026-09-13 · **Status:** Frozen for September challenge
+> **Source of truth:** official `problem_statement.md` + `AGENTS.md §6` from `upstream/main` (fetched, never merged). This file mirrors that contract for implementation. Where prose and data disagree, the data + samples govern after documentation.
+
+## Table of Contents
+
+- [1. Problem](#1-problem)
+- [2. Inputs](#2-inputs-datasetofficial-locally-dataset-upstream--read-only)
+- [3. Required Output](#3-required-output-outputcsv-root)
+- [4. 90-Day Safety Check](#4-90-day-safety-check-central-invariant)
+- [5. Choosing Between Safe Plans](#5-choosing-between-safe-plans)
+- [6. Evidence Rules](#6-evidence-rules)
+  - [6.1 Worked Examples](#61-worked-examples-implementation-grounded-concise)
+  - [6.2 Evidence Precedence](#62-evidence-precedence-code-verified-evidence-conflict_resolver)
+- [7. Implementation Assumptions](#7-implementation-assumptions-verified-vs-unproven--phase-4-audited-2026-09-13)
+- [8. Submission](#8-submission)
+- [9. Failure Semantics](#9-failure-semantics-what-happens-when-things-go-wrong)
+- [10. Prohibited Behavior](#10-prohibited-behavior-ai-must-never-decide)
 
 ## 1. Problem
 
@@ -174,22 +188,23 @@ flowchart TD
     J --> K["authoritative cancelled_set amended_amounts"]
 ```
 
-## 7. Implementation assumptions (VERIFIED vs UNPROVEN) — Phase 4 audited 2026-09-13
+## 7. Implementation Assumptions (VERIFIED vs UNPROVEN) — Phase 4 Audited 2026-09-13
 
-- VERIFIED from data (reproducible, see `evaluation/reports/data_inventory.md` + `dataset_regression_snapshot.json`): 16 blank `financial_events.amount` ↔ 16 `images.csv:related_event_id` ↔ 16 PNGs 1:1:1 (hashes `f94255ba…` etc.); 5 directed FX pairs `USD→INR/IDR/EUR, EUR→USD/ZAR` (134 rows, 39 dates `2023-10-15→2026-11-15` + `2025-10-01`); `sent_at` ISO `YYYY-MM-DDTHH:MM:SSZ`; preference lists `|`-split; 90-day window `[request_date, request_date+89]` inclusive (spec §4); money bare-integer or 2dp (IDR `15952906.67` observed); all PKs unique, 0 orphans eval-partition (see `evaluation/reports/join_integrity.md`).
-- IMPLEMENTED (E0, defensible, residual risk noted): income counts only
-  scheduled/settled-future rows plus narrowly message-confirmed salary
-  (employer + confirm semantics + salary keywords; deny-first; routine-amount
-  fallback); history salary is NOT projected (sample request_05 decisive).
-  Expense/subscription recurrence via monthly/weekly cadence plus flexible
-  same-description repetition (≥2, gap ≥7d); debt/investment obligations never
-  inferred; installment term ≈ span_days ≤ months×31 (31d approximation — **UNPROVEN**); pending debits reserved
-  at request_date; blank settlement_date falls back to event_date (10 `unrealized` rows, then ignored).
-- UNPROVEN (explicit, not guessed): **A1 FX** latest-on-or-before exact pair (holds 140/140 today, off-cycle would fallback); 90-day inclusive bound (`+89` vs `+90`); `max_installment_months` semantics (31d/month); grocery/transport medians vs official conservative
-  estimates (±3% calibration noise); variable-spending conservatism rule;
-  salary-day tie-breaks; prize/ambiguous-credit handling; rent-bump and
-  new-deduction messages (ignored, documented); earliest==deadline
-  coincidences in 2 sample rows; `streaming`/`gym` dual willingness (41 profiles) — per-event exclusive only.
+| Class | Item | Status | Evidence |
+|---|---|---|---|
+| **VERIFIED** | 16 blank `financial_events.amount` ↔ 16 `images.csv:related_event_id` ↔ 16 PNGs 1:1:1 | ✅ Data | `evaluation/reports/data_inventory.md:0`, hashes `f94255ba…` |
+| **VERIFIED** | 5 directed FX pairs `USD→INR/IDR/EUR, EUR→USD/ZAR` (134 rows, 39 dates) | ✅ Data | `data_inventory.md §6`, `join_integrity.md §6` |
+| **VERIFIED** | `sent_at` ISO `YYYY-MM-DDTHH:MM:SSZ`, preference `|`-split, 90-day `[request_date, +89]` | ✅ Data | Spec §4, `temporal.py:WINDOW_DAYS=90` |
+| **VERIFIED** | Money bare-integer or 2dp (IDR `15952906.67`), all PKs unique, 0 orphans eval-partition | ✅ Data | `data_inventory.md`, `join_integrity.md` |
+| **IMPLEMENTED** | Income = scheduled/settled-future + narrowly message-confirmed salary (employer + confirm + salary keywords; deny-first) | ⚠️ E0 defensible | `pipeline.py:_collect_evidence`, `message_income.py` — history salary NOT projected (request_05 decisive) |
+| **IMPLEMENTED** | Recurrence: monthly/weekly cadence + flexible same-description (≥2, gap ≥7d); debt/investment never inferred | ⚠️ E0 defensible | `timeline.py`, `state.py` |
+| **IMPLEMENTED** | Installment term ≈ `span_days ≤ months×31` (31d approx) | ⚠️ Unproven | `eligibility.py`, `decision-matrix.md` |
+| **IMPLEMENTED** | Pending debits reserved at request_date; blank settlement → event_date (10 unrealized, then ignored) | ⚠️ E0 defensible | `timeline.py:build_flows` |
+| **UNPROVEN** | **A1 FX** — latest-on-or-before exact directed pair (holds 140/140; off-cycle fallback fail-closed) | ❓ | `finance/currency.py:RateTable`, spec §2 |
+| **UNPROVEN** | 90-day inclusive bound (`+89` vs `+90`), `max_installment_months` 31d/month, grocery/transport medians ±3% | ❓ | `temporal.py`, spec §4 |
+| **UNPROVEN** | Variable-spending conservatism, salary-day tie-breaks, prize/ambiguous credit, rent-bump ignored, `streaming`/`gym` dual willingness (41 profiles) | ❓ | `spending_changes.py`, `data_inventory.md §3` |
+
+> All UNPROVEN items are explicitly tagged and never guessed. See `evaluation/reports/data_inventory.md §10` for full unknowns list.
 
 ## 8. Submission
 

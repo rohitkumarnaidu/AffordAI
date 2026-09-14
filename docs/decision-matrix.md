@@ -1,6 +1,17 @@
-# Decision Matrix — input → output rules
+# Decision Matrix — Input → Output Rules
 
-Companion to `specification.md`. No code may contradict this file.
+> **Version:** 1.2 · **Last updated:** 2026-09-13 · **Authority:** `docs/specification.md` §§3-5 + `src/affordai/decision/` + `src/affordai/finance/optimizer.py`
+> Companion to `specification.md`. No code may contradict this file.
+
+## Table of Contents
+
+- [A. Status × Method Allowed Pairs](#a-status--method-allowed-pairs)
+- [B. Method Eligibility](#b-method-eligibility-before-ranking)
+- [C. 90-Day Gate](#c-90-day-gate-every-candidate)
+- [D. Ranking](#d-ranking-first-match-wins)
+- [E. Spending Changes](#e-spending-changes)
+- [F. Conflicts](#f-conflicts)
+- [G. Amounts/Dates](#g-amountsdates)
 
 ## A. Status × method allowed pairs
 
@@ -66,8 +77,24 @@ each change re-simulated (must flip an unsafe plan safe or be omitted).
 
 cancel/settle/amend > newer same-source > settled > safer. LLM never reorders this.
 
-## G. Amounts/dates
+## G. Amounts/Dates
 
-`0 <= safe <= requested`; `safe` computed WITHOUT optional changes; `earliest` WITHOUT
-optional changes; quantized in home currency to 2dp for all five currencies
-(sample evidence: IDR amounts carry 2dp, e.g. `15952906.67`).
+| Rule | Value | Verified In |
+|---|---|---|
+| `0 ≤ safe ≤ requested` | fail-closed clamp | `forecast.max_safe_today` post-conditions |
+| `safe` BEFORE optional changes | spending changes must flip unsafe→safe | `pipeline.py:decide_context` order |
+| `earliest` WITHOUT optional changes | independent of preferences/deadline | `forecast.earliest_full_date` single-state sig |
+| Quantization | 2dp `ROUND_FLOOR` for all 5 currencies | `finance/money.py:quantize` (IDR `15952906.67` observed) |
+| Date format | `YYYY-MM-DD` strict | `output/serializer.py:format_date` |
+
+## H. Worked Decision Table (LOCAL MEASUREMENT, 2026-09-13)
+
+| Request | Status | Method | Safe | Earliest | Plan | Reason |
+|---|---|---|---|---|---|---|
+| `request_26` | `affordable_now` | `full_payment` | 15656000 | 2025-08-03 | `2025-08-03:15656000` | full safe today |
+| `request_30` | `affordable_with_plan` | `installments` | 738.16 | (empty) | `2026-04-06:268.74|...` | installments exact match, earliest empty = single-payment never safe |
+| `request_36` | `affordable_later` | `wait` | 789.44 | 2026-08-15 | `2026-08-15:3954` | future salary makes full safe |
+| `request_28` | `not_affordable` | `not_recommended` | 0 | (empty) | `none` | no safe candidate |
+| *synthetic* | `affordable_with_plan` | `partial_payment` | 1500 | 2026-02-10 | `REQ:1500|EAR:2500` | 5 gates + 2-leg exact shape |
+
+> See `docs/specification.md §6.1` for full traces and `tests/regression/test_sections_15_21.py` for synthetic proofs.

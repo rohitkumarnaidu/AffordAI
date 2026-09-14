@@ -1,7 +1,19 @@
-# Evaluation Strategy (LOCAL PROXY -- NOT official HackerRank score)
+# Evaluation Strategy (LOCAL PROXY — NOT Official HackerRank Score)
 
-> OFFICIAL HackerRank score: UNKNOWN (no published formula). All numbers below are
-> LOCAL MEASUREMENT / LOCAL PROXY unless labelled otherwise (see evaluation/README.md).
+> **OFFICIAL HackerRank score:** UNKNOWN (no published formula). All numbers below are
+> **LOCAL MEASUREMENT / LOCAL PROXY** unless labelled otherwise (see `evaluation/README.md`).
+> Forbidden claim: “local score = official score”.
+
+## Table of Contents
+
+- [27.1 Official vs Local](#271-official-vs-local)
+- [27.2 Metrics](#272-metrics-reproducible-definitions-in-srcaffordaiuevaluationmetrics pymetric_defs)
+- [27.3 Evaluation Sets](#273-evaluation-sets-declared-in-evaluationdatasetsjson)
+- [27.4 Reporting](#274-reporting-scriptseval_reportpy)
+- [28 Ablation](#28-ablation-scriptsrun_ablationpy----reproducible-e0-e7)
+- [29 Regression](#29-regression-testsregression)
+- [30 Adversarial](#30-adversarial-testsadversarialtest_sections_27_30_threatspy--docsthreat-modelmd)
+- [Measured Baseline](#measured-baseline-2026-09-13-250-rows)
 
 ## 27.1 Official vs Local
 

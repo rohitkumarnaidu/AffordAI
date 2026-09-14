@@ -1,7 +1,18 @@
-# Build Checklist -- Modules 0-35 (completion gate)
+# Build Checklist — Modules 0–39 (Completion Gate)
 
-Status per item: `[ ]` not started · `[~]` partial · `[x]` complete · `[!]` blocked/risky · `[-]` n/a.
-Referenced by `AGENTS.md` §§27-27b, 30. Update as work lands.
+> **Version:** 2.1 · **Last updated:** 2026-09-14 · **Referenced by:** `AGENTS.md` §§27–27b, 30 · **Status:** All modules `[x]` — CONDITIONAL GREEN (packaging only)
+
+## Table of Contents
+
+- [Module 0 — Repository & Governance](#module-0----repository--governance)
+- [Modules 1–10 — Spec / Ingestion / Evidence / Finance](#module-1----specification)
+- [Modules 11–20 — Forecast / Plans / Ranking](#module-11----financial-state-engine-financestatepy)
+- [Modules 21–30 — Output / AI / Evaluation / Security](#module-21----decision-decisiondecisionpy)
+- [Modules 31–35 — Clean Room / Repro / Docs / Interview / Submission](#module-31----clean-room-scriptsclean_room_runpy)
+- [Modules 36–39 — Documentation & Workflow Closure](#module-36----documentation-36-closed-2026-09-13-1730-ist)
+- [Gates](#top-10-readiness-gate-evaluated-2026-09-13-1730-ist--all-true)
+
+Status per item: `[ ]` not started · `[~]` partial · `[x]` complete · `[!]` blocked/risky · `[-]` n/a. Update as work lands.
 
 ## MODULE 0 -- Repository & governance
 - [x] 0.1 repo init, `origin`=AffordAI, `upstream`=official-ref, branch/worktree known
@@ -151,6 +162,7 @@ Referenced by `AGENTS.md` §§27-27b, 30. Update as work lands.
 
 ## MODULE 33 -- Documentation
 - [x] 33.1/33.2 README + 7 tech docs + interview notes complete (+ this checklist) -- Evidence: `docs/interview-notes.md` 19 components each WHAT/WHERE/WHY/INPUTS/OUTPUTS/AUTHORITY/FAILURE MODES/TEST COVERAGE + 5 worked examples, `docs/evaluation-strategy.md` 27.1-27.4 + 28-30, `docs/threat-model.md` 30.1-30.5 29 cases
+- [x] 33.3 runbook + glossary + API reference -- Evidence: `docs/runbook.md` (10 sections, script reference table, troubleshooting), `docs/glossary.md` (6 term groups, 40+ definitions), `docs/api-reference.md` (module map + 8 package sections with file:function signatures) — added 2026-09-14, no broken links, 375 tests still green
 
 ## MODULE 34 -- Interview (`docs/interview-notes.md`)
 - [x] 34.1 WHAT/WHERE/WHY/alternative/trade-off/failure/test/example/limitation per component -- Evidence: `docs/interview-notes.md` per-component deep dive (19 components) + system walkthrough
@@ -165,9 +177,9 @@ Referenced by `AGENTS.md` §§27-27b, 30. Update as work lands.
 
 ---
 
-## MODULE 36 -- Documentation (§36, closed 2026-09-13 ~17:30 IST)
+## MODULE 36 -- Documentation (§36, closed 2026-09-13 ~17:30 IST; polished 2026-09-14)
 
-- [x] 36.1 README: purpose/challenge/architecture/AI-boundary/financial-core/setup/run/evaluation/token-cost/limitations -- Evidence: `README.md` §§1-10, real commands verified (`build_output`, `validate_output`, `pytest 354`), both-modes token truth, honest limitations incl. 0-production partials
+- [x] 36.1 README: purpose/challenge/architecture/AI-boundary/financial-core/setup/run/evaluation/token-cost/limitations -- Evidence: `README.md` §§1-10 + Docs table (13 entries, incl. 3 new 2026-09-14), real commands verified (`build_output`, `validate_output`, `pytest 375`), both-modes token truth, honest limitations incl. 0-production partials; TOC added 2026-09-14
 - [x] 36.2 specification: exact contract + edge semantics + examples + no contradictions -- Evidence: `docs/specification.md` §§1-10 (inputs/outputs/financial/temporal/evidence/conflict/payment/decision/ranking + failure §9 + prohibited §10)
 - [x] 36.3 architecture: components/responsibilities/data-flow/AI-failure-validation boundaries -- Evidence: `docs/architecture.md` (pipeline map + deterministic-vs-AI + trust + failure + 6-layer validation boundaries)
 - [x] 36.4 evaluation: local proxy definition + failure categories + ablation + regression -- Evidence: `docs/evaluation-strategy.md` §§27-30 + `evaluation/README.md` vocabulary; ablation E0-E7 with metered E7 truth

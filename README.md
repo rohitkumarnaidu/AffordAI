@@ -4,6 +4,22 @@
 
 Built for **HackerRank Orchestrate September 2026 — Buy or Wait?**
 
+> **Status:** Production · **Pipeline:** Deterministic E0 (0 calls, 0 tokens) · **Tests:** 375 passing · **Validator:** PASS · **Replay:** `d8386548517835c9` byte-identical · **Clean-room:** PASS
+
+## Table of Contents
+
+- [1. Project Purpose](#1-project-purpose)
+- [2. Challenge](#2-challenge)
+- [3. Architecture](#3-architecture-real-pipeline-real-files)
+- [4. AI Boundary](#4-ai-boundary)
+- [5. Financial Core](#5-financial-core)
+- [6. Setup](#6-setup)
+- [7. Run](#7-run)
+- [8. Evaluation](#8-evaluation-local-proxy--not-official-score)
+- [9. Token/Cost](#9-tokencost-metered-truth)
+- [10. Limitations](#10-limitations-honest)
+- [Docs](#docs)
+
 ## 1. Project purpose
 
 For each row in `dataset/official/requests.csv` (250 eval requests), AffordAI decides
@@ -167,3 +183,22 @@ Submission artifacts: root `output.csv` (250+header) · `code.zip` (runnable cod
 README + `evaluation/`) · `evaluation/usage_report.md` inside `code.zip` ·
 `log.txt` transcript (uploaded separately, never in `code.zip`).
 Submit at `https://www.hackerrank.com/contests/hackerrank-orchestrate-september26/challenges/buy-or-wait/submission`.
+
+## Docs
+
+| Doc | Purpose |
+|---|---|
+| `docs/specification.md` | Tier-1 contract (inputs/outputs/90-day invariant/evidence/conflict/ranking) |
+| `docs/decision-matrix.md` | Status×method, eligibility, ranking 6-rule, worked table |
+| `docs/data-model.md` | Entities, ER diagram, joins, temporal meaning, nullability |
+| `docs/architecture.md` | Pipeline, trust/failure/validation boundaries, mermaid diagrams |
+| `docs/evaluation-strategy.md` | Local proxy metrics, sets, ablation E0→E7, regression |
+| `docs/threat-model.md` | 29 adversarial cases, mitigations, secret/cross-request/output hardening |
+| `docs/interview-notes.md` | 60s walkthrough + 19 components + 7 walkthroughs + 8 defense Q&A |
+| `docs/model-call-inventory.md` | 2 model calls (`message_extract`, `image_amount_extract`) with contracts |
+| `docs/runbook.md` | **NEW** — operational guide (build/validate/evaluate/debug/submit) |
+| `docs/glossary.md` | **NEW** — domain term definitions |
+| `docs/api-reference.md` | **NEW** — `src/affordai/` module × `file:function` map |
+| `docs/build-checklist.md` | Modules 0–39 completion gate |
+| `evaluation/reports/data_inventory.md` | Byte-level dataset inventory (hashes, rows, joins, unknowns) |
+| `evaluation/reports/join_integrity.md` | PK/FK bijection proofs |

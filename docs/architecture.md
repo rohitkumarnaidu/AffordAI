@@ -1,4 +1,22 @@
-# Architecture
+# Architecture — AffordAI Pipeline
+
+> **Version:** 1.3 · **Last updated:** 2026-09-13 · **Status:** Production (E0 deterministic core frozen)
+> Covers data flow, trust boundaries, failure handling, and validation gates. Code is authoritative — diagrams mirror `src/affordai/pipeline.py:run`.
+
+## Table of Contents
+
+- [Pipeline Overview](#pipeline-overview)
+- [Diagram 1 — Main Pipeline](#diagram-1--main-pipeline-code-verified-implementation-terms)
+- [Deterministic vs AI vs Validation](#deterministic-vs-ai-vs-validation)
+- [Why This Shape](#why-this-shape)
+- [Trust Boundary](#trust-boundary)
+- [Failure Boundary](#failure-boundary)
+- [Validation Boundary](#validation-boundary-six-layers-each-fail-closed)
+- [90-Day Safety Ledger](#diagram-2--90-day-safety-ledger-code-verified-temporalforecast_end-equals-request_date-plus-89)
+- [Validation Gate](#diagram-3--validation-layers-and-gate-code-verified-scripts-validate_output-exits-1)
+- [Rejected Alternatives](#rejected-alternatives)
+
+## Pipeline Overview
 
 ```text
 REQUEST
@@ -100,7 +118,7 @@ fallback row; validator error → exit 1. Failures are logged to the Sec-33
 5. decision validation (`decision.__post_init__`, `invariants.check_earliest_consistency`, `rules.derive`)
 6. output validation (`output/validator.validate_all`, `scripts/validate_output.py` gate)
 
-### Diagram 2 — 90-day safety ledger (code-verified, temporal.forecast_end equals request_date plus 89)
+### Diagram 2 — 90-day safety ledger (code-verified, `temporal.forecast_end = request_date + 89`)
 
 ```mermaid
 flowchart TD
@@ -121,7 +139,7 @@ flowchart TD
     N --> O["rank and decide"]
 ```
 
-### Diagram 5 — Validation layers and gate (code-verified, scripts validate_output exits 1)
+### Diagram 3 — Validation layers and gate (code-verified, `scripts/validate_output.py` exits 1)
 
 ```mermaid
 flowchart TD
